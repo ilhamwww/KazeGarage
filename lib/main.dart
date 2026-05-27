@@ -8,6 +8,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'core/theme/app_theme.dart';
 import 'providers/vehicle_provider.dart';
 import 'providers/transaction_provider.dart';
+import 'providers/fuel_price_provider.dart';
 import 'screens/main_screen.dart';
 
 void main() async {
@@ -31,6 +32,7 @@ class KazeGarageApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => VehicleProvider()),
         ChangeNotifierProvider(create: (_) => TransactionProvider()),
+        ChangeNotifierProvider(create: (_) => FuelPriceProvider()),
       ],
       child: MaterialApp(
         title: 'KazeGarage',

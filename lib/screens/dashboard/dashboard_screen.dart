@@ -10,7 +10,9 @@ import '../../core/theme/app_colors.dart';
 import '../../core/widgets/kaze_app_bar.dart';
 import '../../providers/vehicle_provider.dart';
 import '../../providers/transaction_provider.dart';
+import '../../providers/fuel_price_provider.dart';
 import '../../data/models/fuel_transaction.dart';
+import '../../data/models/fuel_price.dart';
 import '../history/history_screen.dart';
 import '../history/transaction_detail_sheet.dart';
 
@@ -36,9 +38,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (!mounted) return;
     final vehicleProvider = context.read<VehicleProvider>();
     final transactionProvider = context.read<TransactionProvider>();
+    final fuelPriceProvider = context.read<FuelPriceProvider>();
     await vehicleProvider.loadVehicles();
     if (!mounted) return;
     await transactionProvider.loadTransactions();
+    if (!mounted) return;
+    // Fire-and-forget; UI menampilkan loading state sendiri
+    fuelPriceProvider.loadPrices();
   }
 
   String _formatCurrency(double amount) {
@@ -81,6 +87,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
               const SizedBox(height: 24),
               _buildEfficiencyChart(),
               const SizedBox(height: 24),
+              _buildFuelPricesHeader(),
+              const SizedBox(height: 12),
+              _buildFuelPricesSection(),
+              const SizedBox(height: 24),
               _buildRecentActivityHeader(),
               const SizedBox(height: 12),
               _buildRecentActivity(),
@@ -114,7 +124,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
             final previousMonth = data[1];
             double diffPercent = 0;
             if (previousMonth > 0) {
-              diffPercent = ((currentMonth - previousMonth) / previousMonth) * 100;
+              diffPercent =
+                  ((currentMonth - previousMonth) / previousMonth) * 100;
             } else if (currentMonth > 0) {
               diffPercent = 100;
             }
@@ -184,7 +195,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           ),
                           const SizedBox(height: 12),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 5,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.white.withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(20),
@@ -193,9 +207,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Icon(
-                                  diffPercent >= 0 ? Icons.trending_up : Icons.trending_down,
+                                  diffPercent >= 0
+                                      ? Icons.trending_up
+                                      : Icons.trending_down,
                                   size: 14,
-                                  color: diffPercent >= 0 ? AppColors.accentLight : AppColors.success,
+                                  color: diffPercent >= 0
+                                      ? AppColors.accentLight
+                                      : AppColors.success,
                                 ),
                                 const SizedBox(width: 4),
                                 Text(
@@ -222,13 +240,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Future<List<double>> _getCurrentAndPreviousMonthSpending(TransactionProvider provider) async {
+  Future<List<double>> _getCurrentAndPreviousMonthSpending(
+    TransactionProvider provider,
+  ) async {
     final monthly = await provider.getMonthlySpending();
     if (monthly.isEmpty) return [0.0, 0.0];
     final now = DateTime.now();
     final currentKey = '${now.year}-${now.month.toString().padLeft(2, '0')}';
     final prevDate = DateTime(now.year, now.month - 1, 1);
-    final prevKey = '${prevDate.year}-${prevDate.month.toString().padLeft(2, '0')}';
+    final prevKey =
+        '${prevDate.year}-${prevDate.month.toString().padLeft(2, '0')}';
 
     double current = 0;
     double previous = 0;
@@ -337,7 +358,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             touchTooltipData: BarTouchTooltipData(
                               getTooltipItem: (g, gi, r, ri) => BarTooltipItem(
                                 '${r.toY.toStringAsFixed(1)}L',
-                                const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 11),
+                                const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 11,
+                                ),
                               ),
                             ),
                           ),
@@ -348,9 +373,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 showTitles: true,
                                 reservedSize: 22,
                                 getTitlesWidget: (value, meta) {
-                                  const labels = ['SEN', 'SEL', 'RAB', 'KAM', 'JUM', 'SAB', 'MIN'];
+                                  const labels = [
+                                    'SEN',
+                                    'SEL',
+                                    'RAB',
+                                    'KAM',
+                                    'JUM',
+                                    'SAB',
+                                    'MIN',
+                                  ];
                                   final i = value.toInt();
-                                  if (i < 0 || i >= labels.length) return const SizedBox();
+                                  if (i < 0 || i >= labels.length) {
+                                    return const SizedBox();
+                                  }
                                   return Padding(
                                     padding: const EdgeInsets.only(top: 4),
                                     child: Text(
@@ -365,9 +400,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 },
                               ),
                             ),
-                            leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                            topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                            rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                            leftTitles: const AxisTitles(
+                              sideTitles: SideTitles(showTitles: false),
+                            ),
+                            topTitles: const AxisTitles(
+                              sideTitles: SideTitles(showTitles: false),
+                            ),
+                            rightTitles: const AxisTitles(
+                              sideTitles: SideTitles(showTitles: false),
+                            ),
                           ),
                           borderData: FlBorderData(show: false),
                           gridData: const FlGridData(show: false),
@@ -404,7 +445,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     : const Center(
                         child: Text(
                           'Belum ada data minggu ini',
-                          style: TextStyle(color: AppColors.textHint, fontSize: 12),
+                          style: TextStyle(
+                            color: AppColors.textHint,
+                            fontSize: 12,
+                          ),
                         ),
                       ),
               ),
@@ -430,6 +474,136 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }
     }
     return result;
+  }
+
+  // ====== FUEL PRICES ======
+  Widget _buildFuelPricesHeader() {
+    return Consumer<FuelPriceProvider>(
+      builder: (context, provider, _) {
+        return Row(
+          children: [
+            const Expanded(
+              child: Text(
+                'Harga BBM Terbaru',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ),
+            if (provider.data != null)
+              Text(
+                provider.data!.updateDate,
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: () => provider.loadPrices(force: true),
+              child: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: AppColors.accent.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  provider.isLoading ? Icons.hourglass_empty : Icons.refresh,
+                  size: 14,
+                  color: AppColors.accent,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildFuelPricesSection() {
+    return Consumer<FuelPriceProvider>(
+      builder: (context, provider, _) {
+        if (provider.isLoading && provider.data == null) {
+          return Container(
+            height: 130,
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.divider),
+            ),
+            child: const Center(
+              child: CircularProgressIndicator(
+                color: AppColors.accent,
+                strokeWidth: 2,
+              ),
+            ),
+          );
+        }
+        if (provider.data == null) {
+          return Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.divider),
+            ),
+            child: Column(
+              children: [
+                const Icon(
+                  Icons.cloud_off_outlined,
+                  color: AppColors.textHint,
+                  size: 32,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  provider.errorMessage ?? 'Gagal memuat harga BBM',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: () => provider.loadPrices(force: true),
+                  child: const Text('Coba Lagi'),
+                ),
+              ],
+            ),
+          );
+        }
+        // Tampilkan list horizontal: tiap brand jadi card
+        final allBrands = [
+          ...provider.data!.gasoline,
+          ...provider.data!.diesel,
+        ];
+        // Group by brand name
+        final grouped = <String, List<FuelPriceItem>>{};
+        for (final brandData in allBrands) {
+          grouped
+              .putIfAbsent(brandData.brand, () => [])
+              .addAll(brandData.items);
+        }
+        final brandList = grouped.entries.toList();
+
+        return SizedBox(
+          height: 180,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            itemCount: brandList.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 12),
+            itemBuilder: (_, i) {
+              final entry = brandList[i];
+              return _BrandPriceCard(brand: entry.key, items: entry.value);
+            },
+          ),
+        );
+      },
+    );
   }
 
   // ====== RECENT ACTIVITY ======
@@ -489,7 +663,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   SizedBox(height: 8),
                   Text(
                     'Belum ada transaksi',
-                    style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 13,
+                    ),
                   ),
                 ],
               ),
@@ -588,6 +765,145 @@ class _DashboardScreenState extends State<DashboardScreen> {
           }).toList(),
         );
       },
+    );
+  }
+}
+
+class _BrandPriceCard extends StatelessWidget {
+  final String brand;
+  final List<FuelPriceItem> items;
+
+  const _BrandPriceCard({required this.brand, required this.items});
+
+  String _formatPrice(double? price) {
+    if (price == null) return '-';
+    final formatter = NumberFormat.currency(
+      locale: 'id_ID',
+      symbol: 'Rp',
+      decimalDigits: 0,
+    );
+    return formatter.format(price);
+  }
+
+  Color _brandColor() {
+    switch (brand.toLowerCase()) {
+      case 'pertamina':
+        return const Color(0xFFE63946);
+      case 'shell':
+        return const Color(0xFFFFD60A);
+      case 'bp':
+        return const Color(0xFF00A651);
+      case 'vivo':
+        return const Color(0xFF0066CC);
+      default:
+        return AppColors.primary;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _brandColor();
+    // Filter items yang punya harga (skip kosong)
+    final available = items.where((i) => i.price != null).toList();
+
+    return Container(
+      width: 200,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.divider),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.local_gas_station, color: color, size: 18),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  brand,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textPrimary,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          const Divider(height: 1),
+          const SizedBox(height: 8),
+          Expanded(
+            child: available.isEmpty
+                ? const Center(
+                    child: Text(
+                      'Data tidak tersedia',
+                      style: TextStyle(fontSize: 11, color: AppColors.textHint),
+                    ),
+                  )
+                : ListView.builder(
+                    padding: EdgeInsets.zero,
+                    itemCount: available.length,
+                    itemBuilder: (_, i) {
+                      final item = available[i];
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    item.productName.isEmpty
+                                        ? 'RON ${item.ron}'
+                                        : item.productName,
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.textPrimary,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  Text(
+                                    'RON ${item.ron}',
+                                    style: const TextStyle(
+                                      fontSize: 9,
+                                      color: AppColors.textHint,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Text(
+                              _formatPrice(item.price),
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: color,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
     );
   }
 }
