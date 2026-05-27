@@ -38,7 +38,17 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
   String? _spbuCode;
 
   Vehicle? _selectedVehicle;
-  final DateTime _selectedDate = DateTime.now();
+  DateTime _selectedDate = DateTime.now();
+
+  static const List<String> _fuelTypeOptions = [
+    'Pertalite',
+    'Pertamax',
+    'Pertamax Turbo',
+    'Solar',
+    'Dexlite',
+    'Bio Solar',
+    'Premium',
+  ];
 
   final _picker = ImagePicker();
   final _textRecognizer = TextRecognizer(script: TextRecognitionScript.latin);
@@ -600,52 +610,98 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _spbuName ?? 'SPBU',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.textPrimary,
-                        letterSpacing: 0.5,
+          GestureDetector(
+            onTap: _editSpbu,
+            behavior: HitTestBehavior.opaque,
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              _spbuName ?? 'SPBU',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.textPrimary,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Icon(Icons.edit_outlined, size: 13, color: AppColors.textHint),
+                        ],
                       ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      _spbuCode != null ? '$_spbuCode - JAKARTA' : 'Lokasi tidak terdeteksi',
-                      style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
-                    ),
-                  ],
+                      const SizedBox(height: 2),
+                      Text(
+                        _spbuCode != null ? _spbuCode! : 'Lokasi tidak terdeteksi',
+                        style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: AppColors.accent.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(10),
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: AppColors.accent.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.local_gas_station, color: AppColors.accent, size: 22),
                 ),
-                child: const Icon(Icons.local_gas_station, color: AppColors.accent, size: 22),
-              ),
-            ],
+              ],
+            ),
           ),
           const SizedBox(height: 16),
           // Dashed divider
           const _DashedDivider(),
           const SizedBox(height: 16),
 
-          _buildReceiptRow('Jenis BBM', _extractedFuelType ?? '-'),
+          _buildEditableRow(
+            label: 'Jenis BBM',
+            value: _extractedFuelType ?? '-',
+            onTap: _editFuelType,
+          ),
           const SizedBox(height: 10),
-          _buildReceiptRow('Harga/Liter', _extractedPricePerLiter != null ? _formatCurrency(_extractedPricePerLiter!) : '-'),
+          _buildEditableRow(
+            label: 'Harga/Liter',
+            value: _extractedPricePerLiter != null ? _formatCurrency(_extractedPricePerLiter!) : '-',
+            onTap: () => _editNumber(
+              title: 'Harga per Liter',
+              currentValue: _extractedPricePerLiter,
+              isDecimal: false,
+              prefix: 'Rp',
+              onSave: (v) => setState(() {
+                _extractedPricePerLiter = v;
+                _recalculateTotal();
+              }),
+            ),
+          ),
           const SizedBox(height: 10),
-          _buildReceiptRow('Volume', _extractedLiters != null ? '${_extractedLiters!.toStringAsFixed(2)} Liters' : '-'),
+          _buildEditableRow(
+            label: 'Volume',
+            value: _extractedLiters != null ? '${_extractedLiters!.toStringAsFixed(2)} Liters' : '-',
+            onTap: () => _editNumber(
+              title: 'Jumlah Liter',
+              currentValue: _extractedLiters,
+              isDecimal: true,
+              suffix: 'L',
+              onSave: (v) => setState(() {
+                _extractedLiters = v;
+                _recalculateTotal();
+              }),
+            ),
+          ),
           const SizedBox(height: 10),
-          _buildReceiptRow('Tanggal & Waktu', DateFormat('dd MMMM yyyy · HH:mm', 'id_ID').format(_selectedDate)),
+          _buildEditableRow(
+            label: 'Tanggal & Waktu',
+            value: DateFormat('dd MMMM yyyy · HH:mm', 'id_ID').format(_selectedDate),
+            onTap: _editDateTime,
+          ),
           const SizedBox(height: 16),
           const _DashedDivider(),
           const SizedBox(height: 14),
@@ -669,13 +725,37 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
             ),
           ),
           const SizedBox(height: 4),
-          Text(
-            _extractedTotal != null ? _formatCurrency(_extractedTotal!) : '-',
-            style: const TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.w800,
-              color: AppColors.accent,
-              letterSpacing: -0.5,
+          GestureDetector(
+            onTap: () => _editNumber(
+              title: 'Total Pembayaran',
+              currentValue: _extractedTotal,
+              isDecimal: false,
+              prefix: 'Rp',
+              onSave: (v) => setState(() => _extractedTotal = v),
+            ),
+            behavior: HitTestBehavior.opaque,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Text(
+                  _extractedTotal != null ? _formatCurrency(_extractedTotal!) : '-',
+                  style: const TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.accent,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: AppColors.accent.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.edit_outlined, size: 14, color: AppColors.accent),
+                ),
+              ],
             ),
           ),
         ],
@@ -683,24 +763,257 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
     );
   }
 
-  Widget _buildReceiptRow(String label, String value) {
-    return Row(
-      children: [
-        Text(
-          label,
-          style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-        ),
-        const Spacer(),
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w700,
-            color: AppColors.textPrimary,
+  void _recalculateTotal() {
+    if (_extractedLiters != null && _extractedPricePerLiter != null) {
+      _extractedTotal = _extractedLiters! * _extractedPricePerLiter!;
+    }
+  }
+
+  Widget _buildEditableRow({
+    required String label,
+    required String value,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Row(
+        children: [
+          Text(
+            label,
+            style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+          ),
+          const Spacer(),
+          Flexible(
+            child: Text(
+              value,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textPrimary,
+              ),
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.right,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Icon(Icons.edit_outlined, size: 13, color: AppColors.textHint),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _editNumber({
+    required String title,
+    required double? currentValue,
+    required bool isDecimal,
+    String? prefix,
+    String? suffix,
+    required ValueChanged<double> onSave,
+  }) async {
+    final controller = TextEditingController(
+      text: currentValue != null
+          ? (isDecimal ? currentValue.toStringAsFixed(2) : currentValue.toStringAsFixed(0))
+          : '',
+    );
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: TextInputType.numberWithOptions(decimal: isDecimal),
+          decoration: InputDecoration(
+            prefixText: prefix != null ? '$prefix ' : null,
+            suffixText: suffix,
+            filled: true,
+            fillColor: AppColors.surfaceMuted,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
           ),
         ),
-      ],
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final raw = controller.text.replaceAll(',', '.');
+              final v = double.tryParse(raw);
+              if (v != null && v > 0) {
+                onSave(v);
+                Navigator.pop(ctx);
+              } else {
+                KazeNotifier.error(ctx, 'Masukkan angka yang valid');
+              }
+            },
+            child: const Text('Simpan'),
+          ),
+        ],
+      ),
     );
+  }
+
+  Future<void> _editSpbu() async {
+    final nameController = TextEditingController(text: _spbuName ?? '');
+    final codeController = TextEditingController(text: _spbuCode ?? '');
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Edit SPBU'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              autofocus: true,
+              textCapitalization: TextCapitalization.characters,
+              decoration: InputDecoration(
+                labelText: 'Nama SPBU',
+                hintText: 'Contoh: SPBU PERTAMINA',
+                filled: true,
+                fillColor: AppColors.surfaceMuted,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: codeController,
+              decoration: InputDecoration(
+                labelText: 'Kode SPBU (Opsional)',
+                hintText: 'Contoh: 34.12301',
+                filled: true,
+                fillColor: AppColors.surfaceMuted,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              setState(() {
+                _spbuName = nameController.text.trim().isEmpty ? null : nameController.text.trim();
+                _spbuCode = codeController.text.trim().isEmpty ? null : codeController.text.trim();
+              });
+              Navigator.pop(ctx);
+            },
+            child: const Text('Simpan'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _editFuelType() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.background,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Pilih Jenis BBM',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+              ),
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _fuelTypeOptions.map((type) {
+                  final isSelected = _extractedFuelType == type;
+                  return GestureDetector(
+                    onTap: () {
+                      setState(() => _extractedFuelType = type);
+                      Navigator.pop(ctx);
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: isSelected ? AppColors.accent : AppColors.surface,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: isSelected ? AppColors.accent : AppColors.divider,
+                        ),
+                      ),
+                      child: Text(
+                        type,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: isSelected ? Colors.white : AppColors.textPrimary,
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 12),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _editDateTime() async {
+    final pickedDate = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+      builder: (context, child) => Theme(
+        data: Theme.of(context).copyWith(
+          colorScheme: const ColorScheme.light(primary: AppColors.accent),
+        ),
+        child: child!,
+      ),
+    );
+    if (pickedDate == null || !mounted) return;
+    final pickedTime = await showTimePicker(
+      // ignore: use_build_context_synchronously
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(_selectedDate),
+      builder: (context, child) => Theme(
+        data: Theme.of(context).copyWith(
+          colorScheme: const ColorScheme.light(primary: AppColors.accent),
+        ),
+        child: child!,
+      ),
+    );
+    if (pickedTime == null) return;
+    setState(() {
+      _selectedDate = DateTime(
+        pickedDate.year,
+        pickedDate.month,
+        pickedDate.day,
+        pickedTime.hour,
+        pickedTime.minute,
+      );
+    });
   }
 }
 
