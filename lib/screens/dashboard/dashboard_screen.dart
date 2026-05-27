@@ -81,6 +81,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
             children: [
               _buildHeroCard(),
               const SizedBox(height: 24),
+              _buildSectionTitle('Statistik Harga'),
+              const SizedBox(height: 12),
+              _buildPriceStats(),
+              const SizedBox(height: 24),
               _buildSectionTitle('Volume Statistik'),
               const SizedBox(height: 12),
               _buildVolumeStats(),
@@ -135,6 +139,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               builder: (context, totalSnap) {
                 final total = totalSnap.data ?? 0.0;
                 return Container(
+                  width: double.infinity,
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
@@ -260,6 +265,115 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if (key == prevKey) previous = total;
     }
     return [current, previous];
+  }
+
+  // ====== PRICE STATS ======
+  Widget _buildPriceStats() {
+    return Consumer<TransactionProvider>(
+      builder: (context, provider, _) {
+        final now = DateTime.now();
+        double today = 0;
+        double last7 = 0;
+        double last30 = 0;
+        // Untuk rata-rata harga/liter
+        double sumPrice = 0;
+        int countPrice = 0;
+        double? minPrice;
+        double? maxPrice;
+
+        for (final t in provider.transactions) {
+          final daysAgo = now.difference(t.date).inDays;
+          if (_isSameDay(t.date, now)) today += t.totalCost;
+          if (daysAgo < 7) last7 += t.totalCost;
+          if (daysAgo < 30) {
+            last30 += t.totalCost;
+            // Statistik harga/liter dalam 30 hari terakhir
+            if (t.pricePerLiter > 0) {
+              sumPrice += t.pricePerLiter;
+              countPrice++;
+              if (minPrice == null || t.pricePerLiter < minPrice) {
+                minPrice = t.pricePerLiter;
+              }
+              if (maxPrice == null || t.pricePerLiter > maxPrice) {
+                maxPrice = t.pricePerLiter;
+              }
+            }
+          }
+        }
+        final avgPrice = countPrice > 0 ? sumPrice / countPrice : 0.0;
+
+        return Column(
+          children: [
+            // Row 1: pengeluaran per periode
+            SizedBox(
+              height: 92,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                children: [
+                  _PriceStatChip(
+                    label: 'HARI INI',
+                    value: today,
+                    isHighlighted: false,
+                  ),
+                  const SizedBox(width: 10),
+                  _PriceStatChip(
+                    label: '7 HARI',
+                    value: last7,
+                    isHighlighted: false,
+                  ),
+                  const SizedBox(width: 10),
+                  _PriceStatChip(
+                    label: '30 HARI',
+                    value: last30,
+                    isHighlighted: true,
+                  ),
+                ],
+              ),
+            ),
+            // Row 2: ringkasan harga per liter (30 hari)
+            if (countPrice > 0) ...[
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppColors.divider),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: _PricePerLiterMetric(
+                        label: 'TERENDAH',
+                        value: minPrice ?? 0,
+                        color: AppColors.success,
+                      ),
+                    ),
+                    Container(width: 1, height: 32, color: AppColors.divider),
+                    Expanded(
+                      child: _PricePerLiterMetric(
+                        label: 'RATA-RATA',
+                        value: avgPrice,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                    Container(width: 1, height: 32, color: AppColors.divider),
+                    Expanded(
+                      child: _PricePerLiterMetric(
+                        label: 'TERTINGGI',
+                        value: maxPrice ?? 0,
+                        color: AppColors.accent,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        );
+      },
+    );
   }
 
   // ====== VOLUME STATS ======
@@ -575,30 +689,42 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           );
         }
-        // Tampilkan list horizontal: tiap brand jadi card
-        final allBrands = [
-          ...provider.data!.gasoline,
-          ...provider.data!.diesel,
-        ];
-        // Group by brand name
-        final grouped = <String, List<FuelPriceItem>>{};
-        for (final brandData in allBrands) {
-          grouped
-              .putIfAbsent(brandData.brand, () => [])
-              .addAll(brandData.items);
+        // Kumpulkan semua brand unik dari gasoline + diesel
+        final brandSet = <String>{};
+        for (final b in provider.data!.gasoline) {
+          brandSet.add(b.brand);
         }
-        final brandList = grouped.entries.toList();
+        for (final b in provider.data!.diesel) {
+          brandSet.add(b.brand);
+        }
+        final brands = brandSet.toList();
 
         return SizedBox(
-          height: 180,
+          height: 320,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             physics: const BouncingScrollPhysics(),
-            itemCount: brandList.length,
+            itemCount: brands.length,
             separatorBuilder: (_, _) => const SizedBox(width: 12),
             itemBuilder: (_, i) {
-              final entry = brandList[i];
-              return _BrandPriceCard(brand: entry.key, items: entry.value);
+              final brand = brands[i];
+              final gas = provider.data!.gasoline
+                  .firstWhere(
+                    (b) => b.brand == brand,
+                    orElse: () => FuelBrandPrices(brand: brand, items: []),
+                  )
+                  .items;
+              final diesel = provider.data!.diesel
+                  .firstWhere(
+                    (b) => b.brand == brand,
+                    orElse: () => FuelBrandPrices(brand: brand, items: []),
+                  )
+                  .items;
+              return _BrandPriceCard(
+                brand: brand,
+                gasolineItems: gas,
+                dieselItems: diesel,
+              );
             },
           ),
         );
@@ -771,12 +897,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
 class _BrandPriceCard extends StatelessWidget {
   final String brand;
-  final List<FuelPriceItem> items;
+  final List<FuelPriceItem> gasolineItems;
+  final List<FuelPriceItem> dieselItems;
 
-  const _BrandPriceCard({required this.brand, required this.items});
+  const _BrandPriceCard({
+    required this.brand,
+    required this.gasolineItems,
+    required this.dieselItems,
+  });
 
   String _formatPrice(double? price) {
-    if (price == null) return '-';
+    if (price == null || price <= 0) return '-';
     final formatter = NumberFormat.currency(
       locale: 'id_ID',
       symbol: 'Rp',
@@ -803,107 +934,269 @@ class _BrandPriceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = _brandColor();
-    // Filter items yang punya harga (skip kosong)
-    final available = items.where((i) => i.price != null).toList();
 
     return Container(
-      width: 200,
+      width: 230,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.divider),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(Icons.local_gas_station, color: color, size: 18),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  brand,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.textPrimary,
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Brand header
+            Row(
+              children: [
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                  overflow: TextOverflow.ellipsis,
+                  child: Icon(Icons.local_gas_station, color: color, size: 18),
                 ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    brand,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.textPrimary,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            // Gasoline section
+            if (gasolineItems.isNotEmpty) ...[
+              _buildSectionLabel('BENSIN', 'RON', color),
+              const SizedBox(height: 6),
+              ...gasolineItems.map(
+                (item) => _buildPriceRow(item, 'RON', color),
               ),
             ],
+            if (gasolineItems.isNotEmpty && dieselItems.isNotEmpty)
+              const SizedBox(height: 8),
+            // Diesel section
+            if (dieselItems.isNotEmpty) ...[
+              _buildSectionLabel('DIESEL', 'CN', color),
+              const SizedBox(height: 6),
+              ...dieselItems.map((item) => _buildPriceRow(item, 'CN', color)),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSectionLabel(String label, String unit, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 9,
+          fontWeight: FontWeight.w800,
+          color: color,
+          letterSpacing: 0.8,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPriceRow(FuelPriceItem item, String unit, Color color) {
+    final hasPrice = item.price != null && item.price! > 0;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 5),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // RON/CN badge
+          Container(
+            width: 36,
+            padding: const EdgeInsets.symmetric(vertical: 3),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceMuted,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              item.ron,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textSecondary,
+              ),
+            ),
           ),
-          const SizedBox(height: 10),
-          const Divider(height: 1),
-          const SizedBox(height: 8),
+          const SizedBox(width: 8),
           Expanded(
-            child: available.isEmpty
-                ? const Center(
-                    child: Text(
-                      'Data tidak tersedia',
-                      style: TextStyle(fontSize: 11, color: AppColors.textHint),
-                    ),
-                  )
-                : ListView.builder(
-                    padding: EdgeInsets.zero,
-                    itemCount: available.length,
-                    itemBuilder: (_, i) {
-                      final item = available[i];
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 6),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    item.productName.isEmpty
-                                        ? 'RON ${item.ron}'
-                                        : item.productName,
-                                    style: const TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w600,
-                                      color: AppColors.textPrimary,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  Text(
-                                    'RON ${item.ron}',
-                                    style: const TextStyle(
-                                      fontSize: 9,
-                                      color: AppColors.textHint,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Text(
-                              _formatPrice(item.price),
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w800,
-                                color: color,
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  hasPrice && item.productName.isNotEmpty
+                      ? item.productName
+                      : '$unit ${item.ron}',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: hasPrice
+                        ? AppColors.textPrimary
+                        : AppColors.textHint,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  _formatPrice(item.price),
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: hasPrice ? color : AppColors.textHint,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _PriceStatChip extends StatelessWidget {
+  final String label;
+  final double value;
+  final bool isHighlighted;
+
+  const _PriceStatChip({
+    required this.label,
+    required this.value,
+    required this.isHighlighted,
+  });
+
+  String _formatRupiah(double v) {
+    if (v >= 1000000) {
+      return 'Rp ${(v / 1000000).toStringAsFixed(1)}jt';
+    }
+    if (v >= 1000) {
+      return 'Rp ${(v / 1000).toStringAsFixed(0)}rb';
+    }
+    return 'Rp ${v.toStringAsFixed(0)}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 130,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isHighlighted ? AppColors.accent : AppColors.divider,
+          width: isHighlighted ? 1.5 : 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: isHighlighted ? AppColors.accent : AppColors.textSecondary,
+              letterSpacing: 0.6,
+            ),
+          ),
+          Text(
+            _formatRupiah(value),
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              color: AppColors.textPrimary,
+              letterSpacing: -0.3,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PricePerLiterMetric extends StatelessWidget {
+  final String label;
+  final double value;
+  final Color color;
+
+  const _PricePerLiterMetric({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  String _formatRupiah(double v) {
+    if (v >= 1000) {
+      // Format ribuan dengan titik
+      final s = v.toStringAsFixed(0);
+      final buf = StringBuffer();
+      for (int i = 0; i < s.length; i++) {
+        if (i > 0 && (s.length - i) % 3 == 0) buf.write('.');
+        buf.write(s[i]);
+      }
+      return 'Rp${buf.toString()}';
+    }
+    return 'Rp${v.toStringAsFixed(0)}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 9,
+            fontWeight: FontWeight.w700,
+            color: AppColors.textSecondary,
+            letterSpacing: 0.8,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          _formatRupiah(value),
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w800,
+            color: color,
+            letterSpacing: -0.3,
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        const SizedBox(height: 1),
+        const Text(
+          'per liter',
+          style: TextStyle(fontSize: 9, color: AppColors.textHint),
+        ),
+      ],
     );
   }
 }

@@ -39,6 +39,7 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
 
   Vehicle? _selectedVehicle;
   DateTime _selectedDate = DateTime.now();
+  final _odometerController = TextEditingController();
 
   static const List<String> _fuelTypeOptions = [
     'Pertalite',
@@ -73,6 +74,7 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
   @override
   void dispose() {
     _textRecognizer.close();
+    _odometerController.dispose();
     super.dispose();
   }
 
@@ -95,9 +97,11 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
     try {
       final granted = await _requestPermission(source);
       if (!granted) {
-        setState(() => _errorMessage = source == ImageSource.camera
-            ? 'Izin kamera diperlukan untuk memindai struk.'
-            : 'Izin galeri diperlukan untuk memilih gambar.');
+        setState(
+          () => _errorMessage = source == ImageSource.camera
+              ? 'Izin kamera diperlukan untuk memindai struk.'
+              : 'Izin galeri diperlukan untuk memilih gambar.',
+        );
         return;
       }
 
@@ -175,7 +179,11 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
 
   void _extractReceiptData(String ocrText) {
     final text = ocrText.toUpperCase();
-    final lines = ocrText.split('\n').map((l) => l.trim()).where((l) => l.isNotEmpty).toList();
+    final lines = ocrText
+        .split('\n')
+        .map((l) => l.trim())
+        .where((l) => l.isNotEmpty)
+        .toList();
 
     double? liters;
     double? pricePerLiter;
@@ -213,7 +221,18 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
     }
 
     // Fuel type
-    final fuelTypes = ['PERTAMAX TURBO', 'PERTAMAX', 'PERTALITE', 'DEXLITE', 'BIO SOLAR', 'SOLAR', 'DEX', 'PREMIUM', 'V-POWER', 'SUPER'];
+    final fuelTypes = [
+      'PERTAMAX TURBO',
+      'PERTAMAX',
+      'PERTALITE',
+      'DEXLITE',
+      'BIO SOLAR',
+      'SOLAR',
+      'DEX',
+      'PREMIUM',
+      'V-POWER',
+      'SUPER',
+    ];
     for (final ft in fuelTypes) {
       if (text.contains(ft)) {
         fuelType = _capitalize(ft);
@@ -223,11 +242,17 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
 
     // Volume / liters
     final literPatterns = [
-      RegExp(r'[Vv]olume\s*[:=]\s*\(?\s*[Ll]\s*\)?\s*(\d+[.,]\d+)', caseSensitive: false),
+      RegExp(
+        r'[Vv]olume\s*[:=]\s*\(?\s*[Ll]\s*\)?\s*(\d+[.,]\d+)',
+        caseSensitive: false,
+      ),
       RegExp(r'[Vv]olume\s*[:=]\s*(\d+[.,]\d+)', caseSensitive: false),
       RegExp(r'[Vv]olume\s+(\d+[.,]\d+)', caseSensitive: false),
       RegExp(r'\(?[Ll]\)?\s*(\d+[.,]\d+)', caseSensitive: false),
-      RegExp(r'(?:^|\s)(?:L|Liter|LT)\s*[:=]\s*(\d+[.,]\d+)', caseSensitive: false),
+      RegExp(
+        r'(?:^|\s)(?:L|Liter|LT)\s*[:=]\s*(\d+[.,]\d+)',
+        caseSensitive: false,
+      ),
       RegExp(r'(\d+[.,]\d{1,2})\s*(?:L|LTR|Liter|LT)\b', caseSensitive: false),
     ];
     for (final p in literPatterns) {
@@ -241,9 +266,18 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
 
     // Price/liter
     final pricePatterns = [
-      RegExp(r'[Hh]arga\s*/\s*[Ll]iter\s*[:=]?\s*[Rr][Pp]\.?\s*(\d[.,\d]+)', caseSensitive: false),
-      RegExp(r'[Hh]arga\s*/\s*[Ll]iter\s*[:=]\s*(\d[.,\d]+)', caseSensitive: false),
-      RegExp(r'[Hh]arga\s*[:=]\s*[Rr][Pp]\.?\s*(\d[.,\d]+)', caseSensitive: false),
+      RegExp(
+        r'[Hh]arga\s*/\s*[Ll]iter\s*[:=]?\s*[Rr][Pp]\.?\s*(\d[.,\d]+)',
+        caseSensitive: false,
+      ),
+      RegExp(
+        r'[Hh]arga\s*/\s*[Ll]iter\s*[:=]\s*(\d[.,\d]+)',
+        caseSensitive: false,
+      ),
+      RegExp(
+        r'[Hh]arga\s*[:=]\s*[Rr][Pp]\.?\s*(\d[.,\d]+)',
+        caseSensitive: false,
+      ),
       RegExp(r'[Rr][Pp]\.?\s*(\d[.,\d]+)\s*/\s*[Ll]', caseSensitive: false),
       RegExp(r'(\d[.,\d]+)\s*/\s*(?:L|Liter|LTR)', caseSensitive: false),
     ];
@@ -251,16 +285,29 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
       final m = p.firstMatch(ocrText);
       if (m != null) {
         pricePerLiter = _parseIndonesianNumber(m.group(1)!);
-        if (pricePerLiter != null && pricePerLiter >= 1000 && pricePerLiter <= 50000) break;
+        if (pricePerLiter != null &&
+            pricePerLiter >= 1000 &&
+            pricePerLiter <= 50000) {
+          break;
+        }
         pricePerLiter = null;
       }
     }
 
     // Total
     final totalPatterns = [
-      RegExp(r'[Tt]otal\s*[Hh]arga\s*[:=]?\s*[Rr][Pp]\.?\s*(\d[.,\d]+)', caseSensitive: false),
-      RegExp(r'[Tt]otal\s*[:=]\s*[Rr][Pp]\.?\s*(\d[.,\d]+)', caseSensitive: false),
-      RegExp(r'(?:TOTAL|JUMLAH|TAGIHAN)\s*[:=]?\s*(?:RP\.?\s*)?(\d[.,\d]+)', caseSensitive: false),
+      RegExp(
+        r'[Tt]otal\s*[Hh]arga\s*[:=]?\s*[Rr][Pp]\.?\s*(\d[.,\d]+)',
+        caseSensitive: false,
+      ),
+      RegExp(
+        r'[Tt]otal\s*[:=]\s*[Rr][Pp]\.?\s*(\d[.,\d]+)',
+        caseSensitive: false,
+      ),
+      RegExp(
+        r'(?:TOTAL|JUMLAH|TAGIHAN)\s*[:=]?\s*(?:RP\.?\s*)?(\d[.,\d]+)',
+        caseSensitive: false,
+      ),
     ];
     for (final p in totalPatterns) {
       final m = p.firstMatch(ocrText);
@@ -287,14 +334,21 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
   }
 
   String _capitalize(String s) {
-    return s.split(' ').map((w) {
-      if (w.isEmpty) return w;
-      return w[0] + w.substring(1).toLowerCase();
-    }).join(' ');
+    return s
+        .split(' ')
+        .map((w) {
+          if (w.isEmpty) return w;
+          return w[0] + w.substring(1).toLowerCase();
+        })
+        .join(' ');
   }
 
   String _formatCurrency(double amount) {
-    final formatter = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
+    final formatter = NumberFormat.currency(
+      locale: 'id_ID',
+      symbol: 'Rp ',
+      decimalDigits: 0,
+    );
     return formatter.format(amount);
   }
 
@@ -303,14 +357,22 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
       KazeNotifier.error(context, 'Pilih kendaraan terlebih dahulu');
       return;
     }
-    if (_extractedLiters == null || _extractedPricePerLiter == null || _extractedTotal == null) {
-      KazeNotifier.error(context, 'Data struk tidak lengkap, scan ulang atau input manual');
+    if (_extractedLiters == null ||
+        _extractedPricePerLiter == null ||
+        _extractedTotal == null) {
+      KazeNotifier.error(
+        context,
+        'Data struk tidak lengkap, scan ulang atau input manual',
+      );
       return;
     }
 
     setState(() => _isSaving = true);
     final provider = context.read<TransactionProvider>();
-    final notes = '${_spbuName ?? "SPBU"}${_spbuCode != null ? " - $_spbuCode" : ""}';
+    final notes =
+        '${_spbuName ?? "SPBU"}${_spbuCode != null ? " - $_spbuCode" : ""}';
+
+    final odometer = double.tryParse(_odometerController.text.trim());
 
     final success = await provider.addTransaction(
       vehicleId: _selectedVehicle!.id,
@@ -320,6 +382,7 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
       pricePerLiter: _extractedPricePerLiter!,
       notes: notes,
       fuelType: _extractedFuelType,
+      odometer: odometer,
     );
     setState(() => _isSaving = false);
 
@@ -382,7 +445,11 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
                 color: AppColors.accent.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.document_scanner_rounded, size: 56, color: AppColors.accent),
+              child: const Icon(
+                Icons.document_scanner_rounded,
+                size: 56,
+                color: AppColors.accent,
+              ),
             ),
           ),
           const SizedBox(height: 32),
@@ -406,7 +473,9 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppColors.accent,
                 side: const BorderSide(color: AppColors.accent),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
             ),
           ),
@@ -419,7 +488,11 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: Text(
                   'atau',
-                  style: TextStyle(fontSize: 12, color: AppColors.textHint, fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textHint,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
               const Expanded(child: Divider(color: AppColors.divider)),
@@ -434,10 +507,16 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
               onPressed: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const AddTransactionScreen()),
+                  MaterialPageRoute(
+                    builder: (_) => const AddTransactionScreen(),
+                  ),
                 );
               },
-              icon: const Icon(Icons.edit_note_rounded, size: 22, color: AppColors.textPrimary),
+              icon: const Icon(
+                Icons.edit_note_rounded,
+                size: 22,
+                color: AppColors.textPrimary,
+              ),
               label: const Text(
                 'Tambah Manual',
                 style: TextStyle(
@@ -448,7 +527,9 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
               ),
               style: TextButton.styleFrom(
                 backgroundColor: AppColors.surfaceMuted,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
             ),
           ),
@@ -462,11 +543,20 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.error_outline, color: AppColors.chartRed, size: 20),
+                  const Icon(
+                    Icons.error_outline,
+                    color: AppColors.chartRed,
+                    size: 20,
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Text(_errorMessage!,
-                        style: const TextStyle(color: AppColors.chartRed, fontSize: 13)),
+                    child: Text(
+                      _errorMessage!,
+                      style: const TextStyle(
+                        color: AppColors.chartRed,
+                        fontSize: 13,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -533,7 +623,10 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
                   ? const SizedBox(
                       width: 20,
                       height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
                     )
                   : const Icon(Icons.save_outlined, size: 20),
               label: Text(_isSaving ? 'Menyimpan...' : 'Simpan Transaksi'),
@@ -550,7 +643,9 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppColors.accent,
                 side: const BorderSide(color: AppColors.accent),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
             ),
           ),
@@ -568,7 +663,9 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
             decoration: BoxDecoration(
               color: AppColors.chartRed.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.chartRed.withValues(alpha: 0.3)),
+              border: Border.all(
+                color: AppColors.chartRed.withValues(alpha: 0.3),
+              ),
             ),
             child: const Text(
               'Tambahkan kendaraan di Garasi terlebih dahulu',
@@ -633,13 +730,22 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
                             ),
                           ),
                           const SizedBox(width: 6),
-                          Icon(Icons.edit_outlined, size: 13, color: AppColors.textHint),
+                          Icon(
+                            Icons.edit_outlined,
+                            size: 13,
+                            color: AppColors.textHint,
+                          ),
                         ],
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        _spbuCode != null ? _spbuCode! : 'Lokasi tidak terdeteksi',
-                        style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                        _spbuCode != null
+                            ? _spbuCode!
+                            : 'Lokasi tidak terdeteksi',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppColors.textSecondary,
+                        ),
                       ),
                     ],
                   ),
@@ -651,7 +757,11 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
                     color: AppColors.accent.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(Icons.local_gas_station, color: AppColors.accent, size: 22),
+                  child: const Icon(
+                    Icons.local_gas_station,
+                    color: AppColors.accent,
+                    size: 22,
+                  ),
                 ),
               ],
             ),
@@ -669,7 +779,9 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
           const SizedBox(height: 10),
           _buildEditableRow(
             label: 'Harga/Liter',
-            value: _extractedPricePerLiter != null ? _formatCurrency(_extractedPricePerLiter!) : '-',
+            value: _extractedPricePerLiter != null
+                ? _formatCurrency(_extractedPricePerLiter!)
+                : '-',
             onTap: () => _editNumber(
               title: 'Harga per Liter',
               currentValue: _extractedPricePerLiter,
@@ -684,7 +796,9 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
           const SizedBox(height: 10),
           _buildEditableRow(
             label: 'Volume',
-            value: _extractedLiters != null ? '${_extractedLiters!.toStringAsFixed(2)} Liters' : '-',
+            value: _extractedLiters != null
+                ? '${_extractedLiters!.toStringAsFixed(2)} Liters'
+                : '-',
             onTap: () => _editNumber(
               title: 'Jumlah Liter',
               currentValue: _extractedLiters,
@@ -699,8 +813,19 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
           const SizedBox(height: 10),
           _buildEditableRow(
             label: 'Tanggal & Waktu',
-            value: DateFormat('dd MMMM yyyy · HH:mm', 'id_ID').format(_selectedDate),
+            value: DateFormat(
+              'dd MMMM yyyy · HH:mm',
+              'id_ID',
+            ).format(_selectedDate),
             onTap: _editDateTime,
+          ),
+          const SizedBox(height: 10),
+          _buildEditableRow(
+            label: 'Odometer',
+            value: _odometerController.text.isNotEmpty
+                ? '${_odometerController.text} km'
+                : '-',
+            onTap: _editOdometer,
           ),
           const SizedBox(height: 16),
           const _DashedDivider(),
@@ -738,7 +863,9 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Text(
-                  _extractedTotal != null ? _formatCurrency(_extractedTotal!) : '-',
+                  _extractedTotal != null
+                      ? _formatCurrency(_extractedTotal!)
+                      : '-',
                   style: const TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.w800,
@@ -753,7 +880,11 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
                     color: AppColors.accent.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: const Icon(Icons.edit_outlined, size: 14, color: AppColors.accent),
+                  child: const Icon(
+                    Icons.edit_outlined,
+                    size: 14,
+                    color: AppColors.accent,
+                  ),
                 ),
               ],
             ),
@@ -781,7 +912,10 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
         children: [
           Text(
             label,
-            style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            style: const TextStyle(
+              fontSize: 12,
+              color: AppColors.textSecondary,
+            ),
           ),
           const Spacer(),
           Flexible(
@@ -813,7 +947,9 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
   }) async {
     final controller = TextEditingController(
       text: currentValue != null
-          ? (isDecimal ? currentValue.toStringAsFixed(2) : currentValue.toStringAsFixed(0))
+          ? (isDecimal
+                ? currentValue.toStringAsFixed(2)
+                : currentValue.toStringAsFixed(0))
           : '',
     );
     await showDialog<void>(
@@ -909,8 +1045,12 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
           ElevatedButton(
             onPressed: () {
               setState(() {
-                _spbuName = nameController.text.trim().isEmpty ? null : nameController.text.trim();
-                _spbuCode = codeController.text.trim().isEmpty ? null : codeController.text.trim();
+                _spbuName = nameController.text.trim().isEmpty
+                    ? null
+                    : nameController.text.trim();
+                _spbuCode = codeController.text.trim().isEmpty
+                    ? null
+                    : codeController.text.trim();
               });
               Navigator.pop(ctx);
             },
@@ -937,7 +1077,11 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
             children: [
               const Text(
                 'Pilih Jenis BBM',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                ),
               ),
               const SizedBox(height: 16),
               Wrap(
@@ -951,12 +1095,19 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
                       Navigator.pop(ctx);
                     },
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
                       decoration: BoxDecoration(
-                        color: isSelected ? AppColors.accent : AppColors.surface,
+                        color: isSelected
+                            ? AppColors.accent
+                            : AppColors.surface,
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
-                          color: isSelected ? AppColors.accent : AppColors.divider,
+                          color: isSelected
+                              ? AppColors.accent
+                              : AppColors.divider,
                         ),
                       ),
                       child: Text(
@@ -964,7 +1115,9 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
-                          color: isSelected ? Colors.white : AppColors.textPrimary,
+                          color: isSelected
+                              ? Colors.white
+                              : AppColors.textPrimary,
                         ),
                       ),
                     ),
@@ -975,6 +1128,44 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Future<void> _editOdometer() async {
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Input Odometer'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        content: TextField(
+          controller: _odometerController,
+          autofocus: true,
+          keyboardType: TextInputType.number,
+          decoration: InputDecoration(
+            hintText: 'Contoh: 45000',
+            suffixText: 'km',
+            filled: true,
+            fillColor: AppColors.surfaceMuted,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              setState(() {});
+              Navigator.pop(ctx);
+            },
+            child: const Text('Simpan'),
+          ),
+        ],
       ),
     );
   }
@@ -1042,7 +1233,11 @@ class _VehicleSelectorRow extends StatelessWidget {
               color: AppColors.surfaceMuted,
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Icon(Icons.directions_car, color: AppColors.textSecondary, size: 20),
+            child: const Icon(
+              Icons.directions_car,
+              color: AppColors.textSecondary,
+              size: 20,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -1102,18 +1297,26 @@ class _VehicleSelectorRow extends StatelessWidget {
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
               ),
             ),
-            ...vehicles.map((v) => ListTile(
-                  leading: const Icon(Icons.directions_car, color: AppColors.textSecondary),
-                  title: Text(v.name, style: const TextStyle(fontWeight: FontWeight.w600)),
-                  subtitle: Text(v.licensePlate),
-                  trailing: v.id == selected?.id
-                      ? const Icon(Icons.check_circle, color: AppColors.accent)
-                      : null,
-                  onTap: () {
-                    onSelected(v);
-                    Navigator.pop(context);
-                  },
-                )),
+            ...vehicles.map(
+              (v) => ListTile(
+                leading: const Icon(
+                  Icons.directions_car,
+                  color: AppColors.textSecondary,
+                ),
+                title: Text(
+                  v.name,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                subtitle: Text(v.licensePlate),
+                trailing: v.id == selected?.id
+                    ? const Icon(Icons.check_circle, color: AppColors.accent)
+                    : null,
+                onTap: () {
+                  onSelected(v);
+                  Navigator.pop(context);
+                },
+              ),
+            ),
             const SizedBox(height: 20),
           ],
         ),
@@ -1134,11 +1337,14 @@ class _DashedDivider extends StatelessWidget {
         final count = (constraints.maxWidth / (dashWidth + dashSpace)).floor();
         return Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: List.generate(count, (_) => Container(
-                width: dashWidth,
-                height: 1,
-                color: AppColors.divider,
-              )),
+          children: List.generate(
+            count,
+            (_) => Container(
+              width: dashWidth,
+              height: 1,
+              color: AppColors.divider,
+            ),
+          ),
         );
       },
     );

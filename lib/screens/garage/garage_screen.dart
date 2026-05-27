@@ -46,11 +46,9 @@ class _GarageScreenState extends State<GarageScreen> {
   }
 
   void _showVehicleDetail(Vehicle vehicle) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => VehicleDetailSheet(vehicle: vehicle),
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => VehicleDetailScreen(vehicle: vehicle)),
     ).then((_) => _loadData());
   }
 
@@ -77,7 +75,9 @@ class _GarageScreenState extends State<GarageScreen> {
       body: Consumer2<VehicleProvider, TransactionProvider>(
         builder: (context, vehicleProvider, transactionProvider, _) {
           if (vehicleProvider.isLoading) {
-            return const Center(child: CircularProgressIndicator(color: AppColors.accent));
+            return const Center(
+              child: CircularProgressIndicator(color: AppColors.accent),
+            );
           }
           return RefreshIndicator(
             color: AppColors.accent,
@@ -107,13 +107,15 @@ class _GarageScreenState extends State<GarageScreen> {
                 const SizedBox(height: 20),
 
                 // Vehicle list
-                ...vehicleProvider.vehicles.map((v) => _VehicleCard(
-                      vehicle: v,
-                      onTap: () => _showVehicleDetail(v),
-                      onSetActive: () async {
-                        await vehicleProvider.setActiveVehicle(v.id);
-                      },
-                    )),
+                ...vehicleProvider.vehicles.map(
+                  (v) => _VehicleCard(
+                    vehicle: v,
+                    onTap: () => _showVehicleDetail(v),
+                    onSetActive: () async {
+                      await vehicleProvider.setActiveVehicle(v.id);
+                    },
+                  ),
+                ),
 
                 // Add vehicle empty card
                 _buildAddVehicleCard(),
@@ -147,7 +149,11 @@ class _GarageScreenState extends State<GarageScreen> {
                 color: AppColors.surfaceMuted,
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.add, size: 28, color: AppColors.textSecondary),
+              child: const Icon(
+                Icons.add,
+                size: 28,
+                color: AppColors.textSecondary,
+              ),
             ),
             const SizedBox(height: 12),
             const Text(
@@ -162,10 +168,7 @@ class _GarageScreenState extends State<GarageScreen> {
             const Text(
               'Daftarkan kendaraan baru ke sistem',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 12,
-                color: AppColors.textSecondary,
-              ),
+              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
             ),
           ],
         ),
@@ -218,7 +221,9 @@ class _VehicleCard extends StatelessWidget {
           children: [
             // Image area
             ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(16),
+              ),
               child: Stack(
                 children: [
                   Container(
@@ -234,7 +239,8 @@ class _VehicleCard extends StatelessWidget {
                         ],
                       ),
                     ),
-                    child: vehicle.imageUrl != null && vehicle.imageUrl!.isNotEmpty
+                    child:
+                        vehicle.imageUrl != null && vehicle.imageUrl!.isNotEmpty
                         ? _buildImage(vehicle.imageUrl!)
                         : Center(
                             child: Icon(
@@ -250,7 +256,10 @@ class _VehicleCard extends StatelessWidget {
                       top: 12,
                       right: 12,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
                         decoration: BoxDecoration(
                           color: AppColors.primary,
                           borderRadius: BorderRadius.circular(6),
@@ -273,7 +282,10 @@ class _VehicleCard extends StatelessWidget {
                       child: GestureDetector(
                         onTap: onSetActive,
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 5,
+                          ),
                           decoration: BoxDecoration(
                             color: Colors.white.withValues(alpha: 0.85),
                             borderRadius: BorderRadius.circular(6),
@@ -320,7 +332,11 @@ class _VehicleCard extends StatelessWidget {
                             const SizedBox(height: 4),
                             Row(
                               children: [
-                                Icon(_typeIcon(), size: 13, color: AppColors.textSecondary),
+                                Icon(
+                                  _typeIcon(),
+                                  size: 13,
+                                  color: AppColors.textSecondary,
+                                ),
                                 const SizedBox(width: 5),
                                 Text(
                                   vehicle.vehicleType ?? 'Kendaraan',
@@ -335,11 +351,16 @@ class _VehicleCard extends StatelessWidget {
                         ),
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
                           color: AppColors.primary.withValues(alpha: 0.06),
                           borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: AppColors.primary.withValues(alpha: 0.15)),
+                          border: Border.all(
+                            color: AppColors.primary.withValues(alpha: 0.15),
+                          ),
                         ),
                         child: Text(
                           vehicle.licensePlate,
@@ -422,7 +443,11 @@ class _VehicleCard extends StatelessWidget {
                               ),
                             ),
                             const SizedBox(width: 2),
-                            const Icon(Icons.chevron_right, color: AppColors.accent, size: 18),
+                            const Icon(
+                              Icons.chevron_right,
+                              color: AppColors.accent,
+                              size: 18,
+                            ),
                           ],
                         ),
                       ),
@@ -452,6 +477,8 @@ class _VehicleCard extends StatelessWidget {
     if (file.existsSync()) {
       return Image.file(file, fit: BoxFit.cover, width: double.infinity);
     }
-    return Center(child: Icon(_typeIcon(), size: 80, color: AppColors.textHint));
+    return Center(
+      child: Icon(_typeIcon(), size: 80, color: AppColors.textHint),
+    );
   }
 }

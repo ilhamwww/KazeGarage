@@ -8,11 +8,7 @@ class KazeAppBar extends StatelessWidget implements PreferredSizeWidget {
   final VoidCallback? onNotificationTap;
   final VoidCallback? onAvatarTap;
 
-  const KazeAppBar({
-    super.key,
-    this.onNotificationTap,
-    this.onAvatarTap,
-  });
+  const KazeAppBar({super.key, this.onNotificationTap, this.onAvatarTap});
 
   @override
   Size get preferredSize => const Size.fromHeight(72);
@@ -24,9 +20,7 @@ class KazeAppBar extends StatelessWidget implements PreferredSizeWidget {
       child: Container(
         height: 72,
         padding: const EdgeInsets.symmetric(horizontal: 20),
-        decoration: const BoxDecoration(
-          color: AppColors.surface,
-        ),
+        decoration: const BoxDecoration(color: AppColors.surface),
         child: Row(
           children: [
             // Avatar
@@ -48,16 +42,23 @@ class KazeAppBar extends StatelessWidget implements PreferredSizeWidget {
               ),
             ),
             const SizedBox(width: 12),
-            // Brand
-            const Text(
-              'KazeGarage',
-              style: TextStyle(
-                fontFamily: 'HankenGrotesk',
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: AppColors.textPrimary,
-                letterSpacing: -0.3,
-              ),
+            // Brand Logo
+            Image.asset(
+              'assets/icon/kaze_garage_logo.png',
+              height: 36,
+              fit: BoxFit.contain,
+              errorBuilder: (context, error, stackTrace) {
+                return const Text(
+                  'KazeGarage',
+                  style: TextStyle(
+                    fontFamily: 'HankenGrotesk',
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                    letterSpacing: -0.3,
+                  ),
+                );
+              },
             ),
             const Spacer(),
             // Notification
