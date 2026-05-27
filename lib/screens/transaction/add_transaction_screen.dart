@@ -30,6 +30,15 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   Vehicle? _selectedVehicle;
   DateTime _selectedDate = DateTime.now();
   bool _isSaving = false;
+  String? _selectedFuelType;
+
+  static const List<String> _fuelTypes = [
+    'Pertalite',
+    'Pertamax',
+    'Pertamax Turbo',
+    'Solar',
+    'Dexlite',
+  ];
 
   @override
   void initState() {
@@ -100,6 +109,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       pricePerLiter: double.parse(_priceController.text),
       odometer: _odometerController.text.isNotEmpty ? double.tryParse(_odometerController.text) : null,
       notes: _notesController.text.isNotEmpty ? _notesController.text : null,
+      fuelType: _selectedFuelType,
     );
 
     setState(() => _isSaving = false);
@@ -229,6 +239,35 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                 if ((double.tryParse(v) ?? 0) <= 0) return 'Harus lebih dari 0';
                 return null;
               },
+            ),
+            const SizedBox(height: 16),
+
+            // Fuel type (optional)
+            const Text('Jenis BBM (Opsional)', style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: _fuelTypes.map((type) {
+                final isSelected = _selectedFuelType == type;
+                return ChoiceChip(
+                  label: Text(type),
+                  selected: isSelected,
+                  onSelected: (selected) {
+                    setState(() {
+                      _selectedFuelType = selected ? type : null;
+                    });
+                  },
+                  selectedColor: AppColors.accent.withValues(alpha: 0.2),
+                  labelStyle: TextStyle(
+                    color: isSelected ? AppColors.accent : AppColors.textPrimary,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                  ),
+                  side: BorderSide(
+                    color: isSelected ? AppColors.accent : AppColors.divider,
+                  ),
+                );
+              }).toList(),
             ),
             const SizedBox(height: 16),
 

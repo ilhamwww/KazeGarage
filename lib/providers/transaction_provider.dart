@@ -41,6 +41,7 @@ class TransactionProvider extends ChangeNotifier {
     double? odometer,
     String? receiptImagePath,
     String? notes,
+    String? fuelType,
   }) async {
     try {
       final transaction = FuelTransaction(
@@ -53,6 +54,7 @@ class TransactionProvider extends ChangeNotifier {
         odometer: odometer,
         receiptImagePath: receiptImagePath,
         notes: notes,
+        fuelType: fuelType,
       );
       await _db.insertTransaction(transaction);
       await loadTransactions(vehicleId: _filterVehicleId);

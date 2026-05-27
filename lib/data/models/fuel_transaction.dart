@@ -11,6 +11,7 @@ class FuelTransaction {
   final double? odometer;
   final String? receiptImagePath;
   final String? notes;
+  final String? fuelType;
   final DateTime createdAt;
 
   FuelTransaction({
@@ -23,6 +24,7 @@ class FuelTransaction {
     this.odometer,
     this.receiptImagePath,
     this.notes,
+    this.fuelType,
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
 
@@ -46,6 +48,7 @@ class FuelTransaction {
       odometer: map['odometer'] != null ? (map['odometer'] as num).toDouble() : null,
       receiptImagePath: map['receipt_image_path'] as String?,
       notes: map['notes'] as String?,
+      fuelType: map['fuel_type'] as String?,
       createdAt: DateTime.parse(map['created_at'] as String),
     );
   }
@@ -62,6 +65,7 @@ class FuelTransaction {
       'odometer': odometer,
       'receipt_image_path': receiptImagePath,
       'notes': notes,
+      'fuel_type': fuelType,
       'created_at': createdAt.toIso8601String(),
     };
   }
@@ -77,6 +81,7 @@ class FuelTransaction {
     double? odometer,
     String? receiptImagePath,
     String? notes,
+    String? fuelType,
     DateTime? createdAt,
   }) {
     return FuelTransaction(
@@ -89,6 +94,7 @@ class FuelTransaction {
       odometer: odometer ?? this.odometer,
       receiptImagePath: receiptImagePath ?? this.receiptImagePath,
       notes: notes ?? this.notes,
+      fuelType: fuelType ?? this.fuelType,
       createdAt: createdAt ?? this.createdAt,
     );
   }

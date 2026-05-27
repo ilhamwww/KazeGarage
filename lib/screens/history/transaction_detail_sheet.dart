@@ -126,6 +126,10 @@ class TransactionDetailSheet extends StatelessWidget {
             _DetailRow(label: 'Jumlah Liter', value: '${transaction.liters.toStringAsFixed(2)} L'),
             const SizedBox(height: 12),
             _DetailRow(label: 'Harga per Liter', value: _formatCurrency(transaction.pricePerLiter)),
+            if (transaction.fuelType != null && transaction.fuelType!.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              _DetailRow(label: 'Jenis BBM', value: transaction.fuelType!),
+            ],
             if (transaction.odometer != null) ...[
               const SizedBox(height: 12),
               _DetailRow(label: 'Odometer', value: '${transaction.odometer!.toStringAsFixed(0)} km'),

@@ -30,6 +30,10 @@ class VehicleProvider extends ChangeNotifier {
     required String licensePlate,
     required double tankCapacity,
     String? imageUrl,
+    String? vehicleType,
+    DateTime? serviceDate,
+    DateTime? taxDate,
+    bool isActive = false,
   }) async {
     try {
       final vehicle = Vehicle(
@@ -38,13 +42,50 @@ class VehicleProvider extends ChangeNotifier {
         licensePlate: licensePlate,
         tankCapacity: tankCapacity,
         imageUrl: imageUrl,
+        vehicleType: vehicleType,
+        serviceDate: serviceDate,
+        taxDate: taxDate,
+        isActive: isActive,
       );
       await _db.insertVehicle(vehicle);
+      // Jika kendaraan baru aktif, non-aktifkan yang lain
+      if (isActive) {
+        await _setOnlyActive(vehicle.id);
+      }
       await loadVehicles();
       return true;
     } catch (e) {
       debugPrint('Error adding vehicle: $e');
       return false;
+    }
+  }
+
+  Future<bool> setActiveVehicle(String id) async {
+    try {
+      await _setOnlyActive(id);
+      await loadVehicles();
+      return true;
+    } catch (e) {
+      debugPrint('Error setting active vehicle: $e');
+      return false;
+    }
+  }
+
+  Future<void> _setOnlyActive(String activeId) async {
+    final all = await _db.getAllVehicles();
+    for (final v in all) {
+      final shouldBeActive = v.id == activeId;
+      if (v.isActive != shouldBeActive) {
+        await _db.updateVehicle(v.copyWith(isActive: shouldBeActive));
+      }
+    }
+  }
+
+  Vehicle? get activeVehicle {
+    try {
+      return _vehicles.firstWhere((v) => v.isActive);
+    } catch (e) {
+      return _vehicles.isNotEmpty ? _vehicles.first : null;
     }
   }
 

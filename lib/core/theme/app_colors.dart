@@ -6,19 +6,21 @@ import 'package:flutter/material.dart';
 class AppColors {
   AppColors._();
 
-  // Warna Utama - Petrol Blue
-  static const Color primary = Color(0xFF12263A);
-  static const Color primaryLight = Color(0xFF1A3A5C);
-  static const Color primaryDark = Color(0xFF0A1929);
+  // Warna Utama - Deep Navy (untuk hero card)
+  static const Color primary = Color(0xFF0F1B2D);
+  static const Color primaryLight = Color(0xFF1A2A40);
+  static const Color primaryDark = Color(0xFF080F1A);
 
   // Warna Aksen - Race Red
   static const Color accent = Color(0xFFE63946);
   static const Color accentLight = Color(0xFFFF6B6B);
+  static const Color accentDark = Color(0xFFC42A36);
 
   // Warna Latar
-  static const Color background = Color(0xFFF5F6FA);
+  static const Color background = Color(0xFFF8F9FB);
   static const Color surface = Color(0xFFFFFFFF);
   static const Color surfaceVariant = Color(0xFFF0F2F5);
+  static const Color surfaceMuted = Color(0xFFEEF1F5);
 
   // Warna Teks
   static const Color textPrimary = Color(0xFF1A1A2E);

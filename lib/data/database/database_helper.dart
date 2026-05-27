@@ -25,8 +25,9 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 1,
+      version: 3,
       onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
     );
   }
 
@@ -39,6 +40,10 @@ class DatabaseHelper {
         license_plate TEXT NOT NULL,
         tank_capacity REAL NOT NULL,
         image_url TEXT,
+        vehicle_type TEXT,
+        service_date TEXT,
+        tax_date TEXT,
+        is_active INTEGER NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL
       )
     ''');
@@ -55,10 +60,23 @@ class DatabaseHelper {
         odometer REAL,
         receipt_image_path TEXT,
         notes TEXT,
+        fuel_type TEXT,
         created_at TEXT NOT NULL,
         FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE
       )
     ''');
+  }
+
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await db.execute('ALTER TABLE fuel_transactions ADD COLUMN fuel_type TEXT');
+    }
+    if (oldVersion < 3) {
+      await db.execute('ALTER TABLE vehicles ADD COLUMN vehicle_type TEXT');
+      await db.execute('ALTER TABLE vehicles ADD COLUMN service_date TEXT');
+      await db.execute('ALTER TABLE vehicles ADD COLUMN tax_date TEXT');
+      await db.execute('ALTER TABLE vehicles ADD COLUMN is_active INTEGER NOT NULL DEFAULT 0');
+    }
   }
 
   // ==================== VEHICLE OPERATIONS ====================

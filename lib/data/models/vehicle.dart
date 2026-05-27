@@ -1,5 +1,5 @@
 // Model untuk kendaraan di KazeGarage
-// Sesuai dengan skema database dari PRD
+// Skema database mendukung gambar, tipe, dan tanggal servis/pajak
 
 class Vehicle {
   final String id;
@@ -7,6 +7,10 @@ class Vehicle {
   final String licensePlate;
   final double tankCapacity;
   final String? imageUrl;
+  final String? vehicleType; // "Mobil Penumpang", "Motor Sport", dll
+  final DateTime? serviceDate; // Jadwal servis berikutnya
+  final DateTime? taxDate; // Tanggal pajak
+  final bool isActive; // Kendaraan utama yang sedang dipakai
   final DateTime createdAt;
 
   Vehicle({
@@ -15,6 +19,10 @@ class Vehicle {
     required this.licensePlate,
     required this.tankCapacity,
     this.imageUrl,
+    this.vehicleType,
+    this.serviceDate,
+    this.taxDate,
+    this.isActive = false,
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
 
@@ -26,6 +34,10 @@ class Vehicle {
       licensePlate: map['license_plate'] as String,
       tankCapacity: (map['tank_capacity'] as num).toDouble(),
       imageUrl: map['image_url'] as String?,
+      vehicleType: map['vehicle_type'] as String?,
+      serviceDate: map['service_date'] != null ? DateTime.parse(map['service_date'] as String) : null,
+      taxDate: map['tax_date'] != null ? DateTime.parse(map['tax_date'] as String) : null,
+      isActive: (map['is_active'] as int? ?? 0) == 1,
       createdAt: DateTime.parse(map['created_at'] as String),
     );
   }
@@ -38,6 +50,10 @@ class Vehicle {
       'license_plate': licensePlate,
       'tank_capacity': tankCapacity,
       'image_url': imageUrl,
+      'vehicle_type': vehicleType,
+      'service_date': serviceDate?.toIso8601String(),
+      'tax_date': taxDate?.toIso8601String(),
+      'is_active': isActive ? 1 : 0,
       'created_at': createdAt.toIso8601String(),
     };
   }
@@ -49,6 +65,10 @@ class Vehicle {
     String? licensePlate,
     double? tankCapacity,
     String? imageUrl,
+    String? vehicleType,
+    DateTime? serviceDate,
+    DateTime? taxDate,
+    bool? isActive,
     DateTime? createdAt,
   }) {
     return Vehicle(
@@ -57,6 +77,10 @@ class Vehicle {
       licensePlate: licensePlate ?? this.licensePlate,
       tankCapacity: tankCapacity ?? this.tankCapacity,
       imageUrl: imageUrl ?? this.imageUrl,
+      vehicleType: vehicleType ?? this.vehicleType,
+      serviceDate: serviceDate ?? this.serviceDate,
+      taxDate: taxDate ?? this.taxDate,
+      isActive: isActive ?? this.isActive,
       createdAt: createdAt ?? this.createdAt,
     );
   }

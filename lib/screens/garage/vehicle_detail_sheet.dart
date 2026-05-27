@@ -131,6 +131,26 @@ class VehicleDetailSheet extends StatelessWidget {
             ),
             const SizedBox(height: 24),
             _InfoRow(icon: Icons.local_gas_station, label: 'Kapasitas Tangki', value: '${vehicle.tankCapacity.toStringAsFixed(0)} Liter'),
+            if (vehicle.vehicleType != null) ...[
+              const SizedBox(height: 12),
+              _InfoRow(icon: Icons.category_outlined, label: 'Tipe Kendaraan', value: vehicle.vehicleType!),
+            ],
+            if (vehicle.serviceDate != null) ...[
+              const SizedBox(height: 12),
+              _InfoRow(
+                icon: Icons.build_outlined,
+                label: 'Tanggal Servis',
+                value: '${vehicle.serviceDate!.day}/${vehicle.serviceDate!.month}/${vehicle.serviceDate!.year}',
+              ),
+            ],
+            if (vehicle.taxDate != null) ...[
+              const SizedBox(height: 12),
+              _InfoRow(
+                icon: Icons.receipt_outlined,
+                label: 'Tanggal Pajak',
+                value: '${vehicle.taxDate!.day}/${vehicle.taxDate!.month}/${vehicle.taxDate!.year}',
+              ),
+            ],
             const SizedBox(height: 12),
             _InfoRow(
               icon: Icons.calendar_today,

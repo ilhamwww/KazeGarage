@@ -1,5 +1,5 @@
 // Scan Receipt Screen - Kamera + OCR untuk memindai struk BBM
-// Menggunakan Google ML Kit Text Recognition untuk ekstrak teks dari struk
+// Hasil ditampilkan dalam card receipt-style yang elegan
 
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -9,6 +9,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/kaze_app_bar.dart';
 import '../../data/models/vehicle.dart';
 import '../../providers/vehicle_provider.dart';
 import '../../providers/transaction_provider.dart';
@@ -32,17 +33,11 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
   double? _extractedPricePerLiter;
   double? _extractedTotal;
   String? _extractedFuelType;
-
-  // Editable controllers (pre-filled from OCR)
-  final _litersController = TextEditingController();
-  final _priceController = TextEditingController();
-  final _totalController = TextEditingController();
-  final _odometerController = TextEditingController();
-  final _notesController = TextEditingController();
+  String? _spbuName;
+  String? _spbuCode;
 
   Vehicle? _selectedVehicle;
   DateTime _selectedDate = DateTime.now();
-  bool _showManualInput = false;
 
   final _picker = ImagePicker();
   final _textRecognizer = TextRecognizer(script: TextRecognitionScript.latin);
@@ -50,42 +45,49 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
   @override
   void initState() {
     super.initState();
-    _litersController.addListener(_recalculateTotal);
-    _priceController.addListener(_recalculateTotal);
+    // Auto-select active vehicle
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final vp = context.read<VehicleProvider>();
+      if (vp.vehicles.isEmpty) {
+        vp.loadVehicles().then((_) {
+          if (!mounted) return;
+          setState(() => _selectedVehicle = vp.activeVehicle);
+        });
+      } else {
+        setState(() => _selectedVehicle = vp.activeVehicle);
+      }
+    });
   }
 
   @override
   void dispose() {
-    _litersController.dispose();
-    _priceController.dispose();
-    _totalController.dispose();
-    _odometerController.dispose();
-    _notesController.dispose();
     _textRecognizer.close();
     super.dispose();
   }
 
-  void _recalculateTotal() {
-    final liters = double.tryParse(_litersController.text) ?? 0;
-    final price = double.tryParse(_priceController.text) ?? 0;
-    if (liters > 0 && price > 0) {
-      _totalController.text = (liters * price).toStringAsFixed(0);
+  Future<bool> _requestPermission(ImageSource source) async {
+    if (source == ImageSource.camera) {
+      final status = await Permission.camera.request();
+      return status.isGranted;
+    } else {
+      if (Platform.isAndroid) {
+        final mediaStatus = await Permission.photos.request();
+        if (mediaStatus.isGranted) return true;
+        final storageStatus = await Permission.storage.request();
+        return storageStatus.isGranted;
+      }
+      return true;
     }
-  }
-
-  Future<bool> _requestCameraPermission() async {
-    final status = await Permission.camera.request();
-    return status.isGranted;
   }
 
   Future<void> _pickImage(ImageSource source) async {
     try {
-      if (source == ImageSource.camera) {
-        final granted = await _requestCameraPermission();
-        if (!granted) {
-          setState(() => _errorMessage = 'Izin kamera diperlukan untuk memindai struk.');
-          return;
-        }
+      final granted = await _requestPermission(source);
+      if (!granted) {
+        setState(() => _errorMessage = source == ImageSource.camera
+            ? 'Izin kamera diperlukan untuk memindai struk.'
+            : 'Izin galeri diperlukan untuk memilih gambar.');
+        return;
       }
 
       final picked = await _picker.pickImage(
@@ -102,7 +104,6 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
         _isProcessing = true;
         _errorMessage = null;
         _rawOcrText = null;
-        _showManualInput = false;
       });
 
       await _processImage();
@@ -116,16 +117,13 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
 
   Future<void> _processImage() async {
     if (_imageFile == null) return;
-
     try {
       final inputImage = InputImage.fromFile(_imageFile!);
       final recognizedText = await _textRecognizer.processImage(inputImage);
-
       setState(() {
         _rawOcrText = recognizedText.text;
         _isProcessing = false;
       });
-
       _extractReceiptData(recognizedText.text);
     } catch (e) {
       setState(() {
@@ -133,6 +131,37 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
         _errorMessage = 'Gagal memproses gambar: $e';
       });
     }
+  }
+
+  double? _parseIndonesianNumber(String raw) {
+    final s = raw.trim();
+    if (s.isEmpty) return null;
+    final hasComma = s.contains(',');
+    final hasDot = s.contains('.');
+    if (hasComma && hasDot) {
+      final lastComma = s.lastIndexOf(',');
+      final lastDot = s.lastIndexOf('.');
+      if (lastComma > lastDot) {
+        return double.tryParse(s.replaceAll('.', '').replaceAll(',', '.'));
+      } else {
+        return double.tryParse(s.replaceAll(',', ''));
+      }
+    } else if (hasComma) {
+      final parts = s.split(',');
+      if (parts.length == 2 && parts[1].length <= 2) {
+        return double.tryParse(s.replaceAll(',', '.'));
+      } else {
+        return double.tryParse(s.replaceAll(',', ''));
+      }
+    } else if (hasDot) {
+      final parts = s.split('.');
+      if (parts.length == 2 && parts[1].length <= 2) {
+        return double.tryParse(s);
+      } else {
+        return double.tryParse(s.replaceAll('.', ''));
+      }
+    }
+    return double.tryParse(s);
   }
 
   void _extractReceiptData(String ocrText) {
@@ -143,104 +172,99 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
     double? pricePerLiter;
     double? total;
     String? fuelType;
+    String? spbuName;
+    String? spbuCode;
 
-    // Try to find fuel type
-    final fuelTypes = ['PERTALITE', 'PERTAMAX TURBO', 'PERTAMAX', 'DEXLITE', 'BIO SOLAR', 'SOLAR', 'DEX', 'PREMIUM'];
+    // Detect SPBU name (Pertamina/Shell/BP/Vivo)
+    for (final line in lines) {
+      final upper = line.toUpperCase();
+      if (upper.contains('PERTAMINA')) {
+        spbuName = 'SPBU PERTAMINA';
+        break;
+      }
+      if (upper.contains('SHELL')) {
+        spbuName = 'SHELL';
+        break;
+      }
+      if (upper.contains('VIVO')) {
+        spbuName = 'VIVO';
+        break;
+      }
+      if (upper.contains('BP ')) {
+        spbuName = 'BP';
+        break;
+      }
+    }
+    spbuName ??= 'SPBU';
+
+    // SPBU code: pattern XX.XXXXX (e.g., 34.12301)
+    final codeMatch = RegExp(r'\b(\d{2}\.\d{4,5})\b').firstMatch(ocrText);
+    if (codeMatch != null) {
+      spbuCode = codeMatch.group(1);
+    }
+
+    // Fuel type
+    final fuelTypes = ['PERTAMAX TURBO', 'PERTAMAX', 'PERTALITE', 'DEXLITE', 'BIO SOLAR', 'SOLAR', 'DEX', 'PREMIUM', 'V-POWER', 'SUPER'];
     for (final ft in fuelTypes) {
       if (text.contains(ft)) {
-        fuelType = ft;
+        fuelType = _capitalize(ft);
         break;
       }
     }
 
-    // Try to find liters/volume - Pertamina format: "Volume : (L) 27.77" or "Volume : 27.77 L"
+    // Volume / liters
     final literPatterns = [
-      RegExp(r'Volume\s*:\s*\(L\)\s*(\d+[.,]\d+)', caseSensitive: false),
-      RegExp(r'Volume\s*:\s*(\d+[.,]\d+)\s*\(L\)', caseSensitive: false),
-      RegExp(r'Volume\s*:\s*(\d+[.,]\d+)', caseSensitive: false),
-      RegExp(r'(\d+[.,]\d+)\s*(?:L|LTR|LITER|LT)\b', caseSensitive: false),
-      RegExp(r'(?:L|LTR|LITER|LT)\s*[:=]?\s*(\d+[.,]\d+)', caseSensitive: false),
-      RegExp(r'(?:VOLUME|JUMLAH|QTY)\s*[:=]?\s*(\d+[.,]\d+)', caseSensitive: false),
+      RegExp(r'[Vv]olume\s*[:=]\s*\(?\s*[Ll]\s*\)?\s*(\d+[.,]\d+)', caseSensitive: false),
+      RegExp(r'[Vv]olume\s*[:=]\s*(\d+[.,]\d+)', caseSensitive: false),
+      RegExp(r'[Vv]olume\s+(\d+[.,]\d+)', caseSensitive: false),
+      RegExp(r'\(?[Ll]\)?\s*(\d+[.,]\d+)', caseSensitive: false),
+      RegExp(r'(?:^|\s)(?:L|Liter|LT)\s*[:=]\s*(\d+[.,]\d+)', caseSensitive: false),
+      RegExp(r'(\d+[.,]\d{1,2})\s*(?:L|LTR|Liter|LT)\b', caseSensitive: false),
     ];
-
-    for (final pattern in literPatterns) {
-      final match = pattern.firstMatch(ocrText);
-      if (match != null) {
-        final valueStr = match.group(1)!.replaceAll(',', '.');
-        liters = double.tryParse(valueStr);
-        if (liters != null && liters > 0) break;
+    for (final p in literPatterns) {
+      final m = p.firstMatch(ocrText);
+      if (m != null) {
+        liters = _parseIndonesianNumber(m.group(1)!);
+        if (liters != null && liters > 0 && liters < 500) break;
+        liters = null;
       }
     }
 
-    // Try to find price per liter - Pertamina format: "Harga/Liter : Rp. 9,000" or "Harga/Liter: Rp. 13,500"
+    // Price/liter
     final pricePatterns = [
-      RegExp(r'Harga/Liter\s*:\s*Rp\.?\s*(\d{1,3}[.,]?\d{0,3})', caseSensitive: false),
-      RegExp(r'Harga\s*:\s*Rp\.?\s*(\d{1,3}[.,]?\d{0,3})', caseSensitive: false),
-      RegExp(r'(?:HARGA|PRICE)\s*[:=]?\s*(?:RP\.?\s*)?(\d+[.,]?\d*)', caseSensitive: false),
-      RegExp(r'(?:RP\.?\s*)(\d{4,6})\s*/?\s*(?:L|LTR|LITER)?', caseSensitive: false),
-      RegExp(r'(\d{4,6})\s*/\s*(?:L|LTR|LITER)', caseSensitive: false),
+      RegExp(r'[Hh]arga\s*/\s*[Ll]iter\s*[:=]?\s*[Rr][Pp]\.?\s*(\d[.,\d]+)', caseSensitive: false),
+      RegExp(r'[Hh]arga\s*/\s*[Ll]iter\s*[:=]\s*(\d[.,\d]+)', caseSensitive: false),
+      RegExp(r'[Hh]arga\s*[:=]\s*[Rr][Pp]\.?\s*(\d[.,\d]+)', caseSensitive: false),
+      RegExp(r'[Rr][Pp]\.?\s*(\d[.,\d]+)\s*/\s*[Ll]', caseSensitive: false),
+      RegExp(r'(\d[.,\d]+)\s*/\s*(?:L|Liter|LTR)', caseSensitive: false),
     ];
-
-    for (final pattern in pricePatterns) {
-      final match = pattern.firstMatch(ocrText);
-      if (match != null) {
-        final valueStr = match.group(1)!.replaceAll('.', '').replaceAll(',', '.');
-        pricePerLiter = double.tryParse(valueStr);
-        if (pricePerLiter != null && pricePerLiter > 1000) break;
+    for (final p in pricePatterns) {
+      final m = p.firstMatch(ocrText);
+      if (m != null) {
+        pricePerLiter = _parseIndonesianNumber(m.group(1)!);
+        if (pricePerLiter != null && pricePerLiter >= 1000 && pricePerLiter <= 50000) break;
         pricePerLiter = null;
       }
     }
 
-    // Try to find total - Pertamina format: "Total Harga : Rp. 250,000" or "CASH 250,000"
+    // Total
     final totalPatterns = [
-      RegExp(r'Total Harga\s*:\s*Rp\.?\s*(\d{1,3}[.,]?\d{3}(?:[.,]?\d{3})*)', caseSensitive: false),
-      RegExp(r'Total\s*:\s*Rp\.?\s*(\d{1,3}[.,]?\d{3}(?:[.,]?\d{3})*)', caseSensitive: false),
-      RegExp(r'(?:TOTAL|JUMLAH|TAGIHAN)\s*[:=]?\s*(?:RP\.?\s*)?(\d+[.,]?\d*)', caseSensitive: false),
-      RegExp(r'(?:RP\.?\s*)(\d{5,9})', caseSensitive: false),
+      RegExp(r'[Tt]otal\s*[Hh]arga\s*[:=]?\s*[Rr][Pp]\.?\s*(\d[.,\d]+)', caseSensitive: false),
+      RegExp(r'[Tt]otal\s*[:=]\s*[Rr][Pp]\.?\s*(\d[.,\d]+)', caseSensitive: false),
+      RegExp(r'(?:TOTAL|JUMLAH|TAGIHAN)\s*[:=]?\s*(?:RP\.?\s*)?(\d[.,\d]+)', caseSensitive: false),
     ];
-
-    for (final pattern in totalPatterns) {
-      final match = pattern.firstMatch(ocrText);
-      if (match != null) {
-        final valueStr = match.group(1)!.replaceAll('.', '').replaceAll(',', '.');
-        total = double.tryParse(valueStr);
+    for (final p in totalPatterns) {
+      final m = p.firstMatch(ocrText);
+      if (m != null) {
+        total = _parseIndonesianNumber(m.group(1)!);
         if (total != null && total > 1000) break;
         total = null;
       }
     }
 
-    // Try to parse all numbers from lines as fallback
-    if (liters == null || pricePerLiter == null || total == null) {
-      final allNumbers = <double>[];
-      for (final line in lines) {
-        final numMatches = RegExp(r'(\d+[.,]?\d*)').allMatches(line);
-        for (final m in numMatches) {
-          final s = m.group(1)!.replaceAll(',', '.');
-          final n = double.tryParse(s);
-          if (n != null && n > 0) allNumbers.add(n);
-        }
-      }
-
-      // Heuristic: small number (1-200) is likely liters, medium (5000-20000) is price/liter, large is total
-      if (liters == null) {
-        for (final n in allNumbers) {
-          if (n >= 0.5 && n <= 200) {
-            liters = n;
-            break;
-          }
-        }
-      }
-      if (pricePerLiter == null) {
-        for (final n in allNumbers) {
-          if (n >= 5000 && n <= 25000) {
-            pricePerLiter = n;
-            break;
-          }
-        }
-      }
-      if (total == null && liters != null && pricePerLiter != null) {
-        total = liters * pricePerLiter;
-      }
+    // Fallback: derive total from liters * price
+    if (liters != null && pricePerLiter != null) {
+      total = liters * pricePerLiter;
     }
 
     setState(() {
@@ -248,40 +272,21 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
       _extractedPricePerLiter = pricePerLiter;
       _extractedTotal = total;
       _extractedFuelType = fuelType;
-      _showManualInput = true;
+      _spbuName = spbuName;
+      _spbuCode = spbuCode;
     });
-
-    // Pre-fill controllers
-    if (liters != null) _litersController.text = liters.toStringAsFixed(1);
-    if (pricePerLiter != null) _priceController.text = pricePerLiter.toStringAsFixed(0);
-    if (total != null) {
-      _totalController.text = total.toStringAsFixed(0);
-    } else if (liters != null && pricePerLiter != null) {
-      _totalController.text = (liters * pricePerLiter).toStringAsFixed(0);
-    }
   }
 
-  Future<void> _pickDate() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _selectedDate,
-      firstDate: DateTime(2020),
-      lastDate: DateTime.now(),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: AppColors.accent,
-              onPrimary: AppColors.background,
-            ),
-          ),
-          child: child!,
-        );
-      },
-    );
-    if (picked != null) {
-      setState(() => _selectedDate = picked);
-    }
+  String _capitalize(String s) {
+    return s.split(' ').map((w) {
+      if (w.isEmpty) return w;
+      return w[0] + w.substring(1).toLowerCase();
+    }).join(' ');
+  }
+
+  String _formatCurrency(double amount) {
+    final formatter = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
+    return formatter.format(amount);
   }
 
   Future<void> _save() async {
@@ -291,43 +296,34 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
       );
       return;
     }
-
-    final liters = double.tryParse(_litersController.text) ?? 0;
-    final price = double.tryParse(_priceController.text) ?? 0;
-    final total = double.tryParse(_totalController.text) ?? 0;
-
-    if (liters <= 0 || price <= 0 || total <= 0) {
+    if (_extractedLiters == null || _extractedPricePerLiter == null || _extractedTotal == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Isi liter, harga, dan total dengan benar'), backgroundColor: AppColors.chartRed),
+        const SnackBar(content: Text('Data struk tidak lengkap, scan ulang atau input manual'), backgroundColor: AppColors.chartRed),
       );
       return;
     }
 
     setState(() => _isSaving = true);
-
     final provider = context.read<TransactionProvider>();
-    final notes = _notesController.text.isNotEmpty
-        ? _notesController.text
-        : (_extractedFuelType != null ? 'Jenis: $_extractedFuelType (Scan OCR)' : 'Scan OCR');
+    final notes = '${_spbuName ?? "SPBU"}${_spbuCode != null ? " - $_spbuCode" : ""}';
 
     final success = await provider.addTransaction(
       vehicleId: _selectedVehicle!.id,
       date: _selectedDate,
-      totalCost: total,
-      liters: liters,
-      pricePerLiter: price,
-      odometer: _odometerController.text.isNotEmpty ? double.tryParse(_odometerController.text) : null,
+      totalCost: _extractedTotal!,
+      liters: _extractedLiters!,
+      pricePerLiter: _extractedPricePerLiter!,
       notes: notes,
+      fuelType: _extractedFuelType,
     );
-
     setState(() => _isSaving = false);
 
     if (success && mounted) {
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Transaksi berhasil disimpan dari scan struk'),
-          backgroundColor: AppColors.accent,
+          content: Text('Transaksi berhasil disimpan'),
+          backgroundColor: AppColors.success,
         ),
       );
     } else if (mounted) {
@@ -337,215 +333,103 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
     }
   }
 
+  void _resetScan() {
+    setState(() {
+      _imageFile = null;
+      _rawOcrText = null;
+      _errorMessage = null;
+      _extractedLiters = null;
+      _extractedPricePerLiter = null;
+      _extractedTotal = null;
+      _extractedFuelType = null;
+      _spbuName = null;
+      _spbuCode = null;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Scan Struk'),
-        actions: [
-          if (_imageFile != null)
-            IconButton(
-              icon: const Icon(Icons.refresh),
-              tooltip: 'Scan Ulang',
-              onPressed: () {
-                setState(() {
-                  _imageFile = null;
-                  _rawOcrText = null;
-                  _showManualInput = false;
-                  _errorMessage = null;
-                  _extractedLiters = null;
-                  _extractedPricePerLiter = null;
-                  _extractedTotal = null;
-                  _extractedFuelType = null;
-                  _litersController.clear();
-                  _priceController.clear();
-                  _totalController.clear();
-                  _odometerController.clear();
-                  _notesController.clear();
-                });
-              },
-            ),
-        ],
-      ),
+      backgroundColor: AppColors.background,
+      appBar: const KazeAppBar(),
       body: _imageFile == null ? _buildSourceSelector() : _buildResultView(),
     );
   }
 
   Widget _buildSourceSelector() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 100),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Scan Struk',
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              color: AppColors.textPrimary,
+              letterSpacing: -0.4,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Pindai struk SPBU untuk mencatat otomatis',
+            style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: 32),
+          Center(
+            child: Container(
               width: 120,
               height: 120,
               decoration: BoxDecoration(
                 color: AppColors.accent.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.document_scanner, size: 64, color: AppColors.accent),
+              child: const Icon(Icons.document_scanner_rounded, size: 56, color: AppColors.accent),
             ),
-            const SizedBox(height: 32),
-            const Text(
-              'Pindai Struk BBM',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'Ambil foto atau pilih gambar struk pengisian BBM untuk mengekstrak data secara otomatis.',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 14, color: AppColors.textSecondary, height: 1.5),
-            ),
-            const SizedBox(height: 40),
-            SizedBox(
-              width: double.infinity,
-              height: 52,
-              child: ElevatedButton.icon(
-                onPressed: () => _pickImage(ImageSource.camera),
-                icon: const Icon(Icons.camera_alt),
-                label: const Text('Buka Kamera'),
-              ),
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              height: 52,
-              child: OutlinedButton.icon(
-                onPressed: () => _pickImage(ImageSource.gallery),
-                icon: const Icon(Icons.photo_library),
-                label: const Text('Pilih dari Galeri'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.accent,
-                  side: const BorderSide(color: AppColors.accent),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-            ),
-            if (_errorMessage != null) ...[
-              const SizedBox(height: 24),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppColors.chartRed.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.error_outline, color: AppColors.chartRed, size: 20),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        _errorMessage!,
-                        style: const TextStyle(color: AppColors.chartRed, fontSize: 13),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildResultView() {
-    return Column(
-      children: [
-        // Image preview
-        Container(
-          height: 180,
-          width: double.infinity,
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            border: Border(bottom: BorderSide(color: AppColors.divider)),
           ),
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              Image.file(_imageFile!, fit: BoxFit.cover),
-              if (_isProcessing)
-                Container(
-                  color: Colors.black54,
-                  child: const Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        CircularProgressIndicator(color: AppColors.accent),
-                        SizedBox(height: 12),
-                        Text('Memproses gambar...', style: TextStyle(color: Colors.white)),
-                      ],
-                    ),
-                  ),
-                ),
-            ],
+          const SizedBox(height: 32),
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: ElevatedButton.icon(
+              onPressed: () => _pickImage(ImageSource.camera),
+              icon: const Icon(Icons.camera_alt, size: 20),
+              label: const Text('Buka Kamera'),
+            ),
           ),
-        ),
-
-        // OCR result / manual input form
-        Expanded(
-          child: _isProcessing
-              ? const SizedBox()
-              : _showManualInput
-                  ? _buildEditForm()
-                  : _buildOcrResult(),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildOcrResult() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (_rawOcrText != null) ...[
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: OutlinedButton.icon(
+              onPressed: () => _pickImage(ImageSource.gallery),
+              icon: const Icon(Icons.photo_library_outlined, size: 20),
+              label: const Text('Pilih dari Galeri'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.accent,
+                side: const BorderSide(color: AppColors.accent),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ),
+          if (_errorMessage != null) ...[
+            const SizedBox(height: 24),
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(12),
+                color: AppColors.chartRed.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: Row(
                 children: [
-                  const Text(
-                    'Teks Terdeteksi:',
-                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: AppColors.textSecondary),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    _rawOcrText!,
-                    style: const TextStyle(fontSize: 12, color: AppColors.textPrimary, height: 1.5),
+                  const Icon(Icons.error_outline, color: AppColors.chartRed, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(_errorMessage!,
+                        style: const TextStyle(color: AppColors.chartRed, fontSize: 13)),
                   ),
                 ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () => setState(() => _showManualInput = true),
-                icon: const Icon(Icons.edit),
-                label: const Text('Input Manual'),
-              ),
-            ),
-          ] else ...[
-            const Center(
-              child: Text('Tidak ada teks yang terdeteksi', style: TextStyle(color: AppColors.textSecondary)),
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () => setState(() => _showManualInput = true),
-                icon: const Icon(Icons.edit),
-                label: const Text('Input Manual'),
               ),
             ),
           ],
@@ -554,254 +438,367 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
     );
   }
 
-  Widget _buildEditForm() {
+  Widget _buildResultView() {
+    if (_isProcessing) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(color: AppColors.accent),
+            SizedBox(height: 16),
+            Text(
+              'Memproses struk...',
+              style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
+            ),
+          ],
+        ),
+      );
+    }
+
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 100),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Extraction summary
-          if (_extractedLiters != null || _extractedPricePerLiter != null || _extractedTotal != null)
-            Container(
-              padding: const EdgeInsets.all(12),
-              margin: const EdgeInsets.only(bottom: 16),
-              decoration: BoxDecoration(
-                color: AppColors.accent.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.accent.withValues(alpha: 0.3)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.auto_awesome, color: AppColors.accent, size: 20),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Data terdeteksi dari struk${_extractedFuelType != null ? " ($_extractedFuelType)" : ""}. Periksa dan edit jika perlu.',
-                      style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                    ),
-                  ),
-                ],
-              ),
+          const Text(
+            'Hasil Scan Struk',
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              color: AppColors.textPrimary,
+              letterSpacing: -0.4,
             ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Verifikasi detail pengisian bahan bakar Anda',
+            style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: 20),
 
           // Vehicle selector
-          const Text('Kendaraan', style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
-          const SizedBox(height: 8),
-          Consumer<VehicleProvider>(
-            builder: (context, vehicleProvider, _) {
-              if (vehicleProvider.vehicles.isEmpty) {
-                return Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: AppColors.chartRed.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Text(
-                    'Tambahkan kendaraan terlebih dahulu di menu Garasi.',
-                    style: TextStyle(color: AppColors.chartRed, fontSize: 13),
-                  ),
-                );
-              }
-              return Container(
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.divider),
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<Vehicle>(
-                    value: _selectedVehicle,
-                    hint: const Text('Pilih kendaraan'),
-                    isExpanded: true,
-                    items: vehicleProvider.vehicles.map((v) {
-                      return DropdownMenuItem(
-                        value: v,
-                        child: Text('${v.name} - ${v.licensePlate}'),
-                      );
-                    }).toList(),
-                    onChanged: (v) => setState(() => _selectedVehicle = v),
-                  ),
-                ),
-              );
-            },
-          ),
+          _buildVehicleSelector(),
           const SizedBox(height: 16),
 
-          // Date
-          const Text('Tanggal', style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
-          const SizedBox(height: 8),
-          GestureDetector(
-            onTap: _pickDate,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.divider),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.calendar_today, size: 20, color: AppColors.textSecondary),
-                  const SizedBox(width: 12),
-                  Text(
-                    DateFormat('EEEE, dd MMMM yyyy', 'id_ID').format(_selectedDate),
-                    style: const TextStyle(fontSize: 14, color: AppColors.textPrimary),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // Liters
-          _buildField(
-            controller: _litersController,
-            label: 'Jumlah Liter',
-            hint: 'Contoh: 35.5',
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            suffix: 'L',
-            isDetected: _extractedLiters != null,
-          ),
-          const SizedBox(height: 12),
-
-          // Price per liter
-          _buildField(
-            controller: _priceController,
-            label: 'Harga per Liter',
-            hint: 'Contoh: 13500',
-            keyboardType: TextInputType.number,
-            prefix: 'Rp',
-            isDetected: _extractedPricePerLiter != null,
-          ),
-          const SizedBox(height: 12),
-
-          // Total
-          _buildField(
-            controller: _totalController,
-            label: 'Total Biaya',
-            hint: 'Otomatis dari liter × harga',
-            keyboardType: TextInputType.number,
-            prefix: 'Rp',
-            isDetected: _extractedTotal != null,
-          ),
-          const SizedBox(height: 12),
-
-          // Odometer
-          _buildField(
-            controller: _odometerController,
-            label: 'Odometer (Opsional)',
-            hint: 'Contoh: 15230',
-            keyboardType: TextInputType.number,
-            suffix: 'km',
-          ),
-          const SizedBox(height: 12),
-
-          // Notes
-          _buildField(
-            controller: _notesController,
-            label: 'Catatan (Opsional)',
-            hint: 'Catatan tambahan...',
-            maxLines: 2,
-          ),
+          // Receipt-style card
+          _buildReceiptCard(),
           const SizedBox(height: 24),
 
           // Save button
           SizedBox(
             width: double.infinity,
             height: 52,
-            child: ElevatedButton(
+            child: ElevatedButton.icon(
               onPressed: _isSaving ? null : _save,
-              child: _isSaving
+              icon: _isSaving
                   ? const SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.background),
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                     )
-                  : const Text('Simpan Transaksi'),
+                  : const Icon(Icons.save_outlined, size: 20),
+              label: Text(_isSaving ? 'Menyimpan...' : 'Simpan Transaksi'),
             ),
           ),
-          const SizedBox(height: 16),
-
-          // OCR raw text toggle
-          if (_rawOcrText != null && _rawOcrText!.isNotEmpty)
-            ExpansionTile(
-              title: const Text(
-                'Teks OCR Mentah',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: OutlinedButton.icon(
+              onPressed: _resetScan,
+              icon: const Icon(Icons.refresh, size: 20),
+              label: const Text('Scan Ulang'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.accent,
+                side: const BorderSide(color: AppColors.accent),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Text(
-                    _rawOcrText!,
-                    style: const TextStyle(fontSize: 11, color: AppColors.textSecondary, height: 1.4),
-                  ),
-                ),
-              ],
             ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildField({
-    required TextEditingController controller,
-    required String label,
-    String? hint,
-    TextInputType? keyboardType,
-    String? prefix,
-    String? suffix,
-    bool isDetected = false,
-    int maxLines = 1,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Text(label, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: AppColors.textPrimary)),
-            if (isDetected) ...[
-              const SizedBox(width: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: AppColors.accent.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(4),
+  Widget _buildVehicleSelector() {
+    return Consumer<VehicleProvider>(
+      builder: (context, vp, _) {
+        if (vp.vehicles.isEmpty) {
+          return Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppColors.chartRed.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.chartRed.withValues(alpha: 0.3)),
+            ),
+            child: const Text(
+              'Tambahkan kendaraan di Garasi terlebih dahulu',
+              style: TextStyle(color: AppColors.chartRed, fontSize: 13),
+            ),
+          );
+        }
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.divider),
+          ),
+          child: _VehicleSelectorRow(
+            selected: _selectedVehicle,
+            vehicles: vp.vehicles,
+            onSelected: (v) => setState(() => _selectedVehicle = v),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildReceiptCard() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withValues(alpha: 0.05),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _spbuName ?? 'SPBU',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textPrimary,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _spbuCode != null ? '$_spbuCode - JAKARTA' : 'Lokasi tidak terdeteksi',
+                      style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                    ),
+                  ],
                 ),
-                child: const Text('OCR', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: AppColors.accent)),
+              ),
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: AppColors.accent.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.local_gas_station, color: AppColors.accent, size: 22),
               ),
             ],
-          ],
+          ),
+          const SizedBox(height: 16),
+          // Dashed divider
+          const _DashedDivider(),
+          const SizedBox(height: 16),
+
+          _buildReceiptRow('Jenis BBM', _extractedFuelType ?? '-'),
+          const SizedBox(height: 10),
+          _buildReceiptRow('Harga/Liter', _extractedPricePerLiter != null ? _formatCurrency(_extractedPricePerLiter!) : '-'),
+          const SizedBox(height: 10),
+          _buildReceiptRow('Volume', _extractedLiters != null ? '${_extractedLiters!.toStringAsFixed(2)} Liters' : '-'),
+          const SizedBox(height: 10),
+          _buildReceiptRow('Tanggal & Waktu', DateFormat('dd MMMM yyyy · HH:mm', 'id_ID').format(_selectedDate)),
+          const SizedBox(height: 16),
+          const _DashedDivider(),
+          const SizedBox(height: 14),
+          // Total
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'TOTAL PEMBAYARAN',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textSecondary,
+                      letterSpacing: 1.0,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            _extractedTotal != null ? _formatCurrency(_extractedTotal!) : '-',
+            style: const TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.w800,
+              color: AppColors.accent,
+              letterSpacing: -0.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReceiptRow(String label, String value) {
+    return Row(
+      children: [
+        Text(
+          label,
+          style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
         ),
-        const SizedBox(height: 6),
-        TextFormField(
-          controller: controller,
-          keyboardType: keyboardType,
-          maxLines: maxLines,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
-          decoration: InputDecoration(
-            hintText: hint,
-            prefixText: prefix != null ? '$prefix ' : null,
-            suffixText: suffix,
-            filled: true,
-            fillColor: AppColors.surface,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppColors.divider),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppColors.divider),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppColors.accent, width: 2),
-            ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        const Spacer(),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            color: AppColors.textPrimary,
           ),
         ),
       ],
+    );
+  }
+}
+
+class _VehicleSelectorRow extends StatelessWidget {
+  final Vehicle? selected;
+  final List<Vehicle> vehicles;
+  final ValueChanged<Vehicle> onSelected;
+
+  const _VehicleSelectorRow({
+    required this.selected,
+    required this.vehicles,
+    required this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => _showSelector(context),
+      behavior: HitTestBehavior.opaque,
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: AppColors.surfaceMuted,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.directions_car, color: AppColors.textSecondary, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'KENDARAAN TERPILIH',
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.accent,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  selected != null
+                      ? '${selected!.name} (${selected!.licensePlate})'
+                      : 'Pilih kendaraan',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          Icon(
+            selected != null ? Icons.check_circle : Icons.chevron_right,
+            color: selected != null ? AppColors.success : AppColors.textHint,
+            size: 22,
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSelector(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.background,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(20),
+              child: Text(
+                'Pilih Kendaraan',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+              ),
+            ),
+            ...vehicles.map((v) => ListTile(
+                  leading: const Icon(Icons.directions_car, color: AppColors.textSecondary),
+                  title: Text(v.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                  subtitle: Text(v.licensePlate),
+                  trailing: v.id == selected?.id
+                      ? const Icon(Icons.check_circle, color: AppColors.accent)
+                      : null,
+                  onTap: () {
+                    onSelected(v);
+                    Navigator.pop(context);
+                  },
+                )),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DashedDivider extends StatelessWidget {
+  const _DashedDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const dashWidth = 4.0;
+        const dashSpace = 4.0;
+        final count = (constraints.maxWidth / (dashWidth + dashSpace)).floor();
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: List.generate(count, (_) => Container(
+                width: dashWidth,
+                height: 1,
+                color: AppColors.divider,
+              )),
+        );
+      },
     );
   }
 }
