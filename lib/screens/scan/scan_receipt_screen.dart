@@ -10,9 +10,11 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/kaze_app_bar.dart';
+import '../../core/widgets/kaze_notifier.dart';
 import '../../data/models/vehicle.dart';
 import '../../providers/vehicle_provider.dart';
 import '../../providers/transaction_provider.dart';
+import '../transaction/add_transaction_screen.dart';
 
 class ScanReceiptScreen extends StatefulWidget {
   const ScanReceiptScreen({super.key});
@@ -25,7 +27,6 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
   File? _imageFile;
   bool _isProcessing = false;
   bool _isSaving = false;
-  String? _rawOcrText;
   String? _errorMessage;
 
   // Extracted data from OCR
@@ -37,7 +38,7 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
   String? _spbuCode;
 
   Vehicle? _selectedVehicle;
-  DateTime _selectedDate = DateTime.now();
+  final DateTime _selectedDate = DateTime.now();
 
   final _picker = ImagePicker();
   final _textRecognizer = TextRecognizer(script: TextRecognitionScript.latin);
@@ -103,7 +104,6 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
         _imageFile = File(picked.path);
         _isProcessing = true;
         _errorMessage = null;
-        _rawOcrText = null;
       });
 
       await _processImage();
@@ -121,7 +121,6 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
       final inputImage = InputImage.fromFile(_imageFile!);
       final recognizedText = await _textRecognizer.processImage(inputImage);
       setState(() {
-        _rawOcrText = recognizedText.text;
         _isProcessing = false;
       });
       _extractReceiptData(recognizedText.text);
@@ -291,15 +290,11 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
 
   Future<void> _save() async {
     if (_selectedVehicle == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Pilih kendaraan terlebih dahulu'), backgroundColor: AppColors.chartRed),
-      );
+      KazeNotifier.error(context, 'Pilih kendaraan terlebih dahulu');
       return;
     }
     if (_extractedLiters == null || _extractedPricePerLiter == null || _extractedTotal == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Data struk tidak lengkap, scan ulang atau input manual'), backgroundColor: AppColors.chartRed),
-      );
+      KazeNotifier.error(context, 'Data struk tidak lengkap, scan ulang atau input manual');
       return;
     }
 
@@ -320,23 +315,15 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
 
     if (success && mounted) {
       Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Transaksi berhasil disimpan'),
-          backgroundColor: AppColors.success,
-        ),
-      );
+      KazeNotifier.success(context, 'Transaksi berhasil disimpan');
     } else if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Gagal menyimpan transaksi'), backgroundColor: AppColors.chartRed),
-      );
+      KazeNotifier.error(context, 'Gagal menyimpan transaksi');
     }
   }
 
   void _resetScan() {
     setState(() {
       _imageFile = null;
-      _rawOcrText = null;
       _errorMessage = null;
       _extractedLiters = null;
       _extractedPricePerLiter = null;
@@ -409,6 +396,48 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppColors.accent,
                 side: const BorderSide(color: AppColors.accent),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          // Divider with "atau"
+          Row(
+            children: [
+              const Expanded(child: Divider(color: AppColors.divider)),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Text(
+                  'atau',
+                  style: TextStyle(fontSize: 12, color: AppColors.textHint, fontWeight: FontWeight.w600),
+                ),
+              ),
+              const Expanded(child: Divider(color: AppColors.divider)),
+            ],
+          ),
+          const SizedBox(height: 20),
+          // Manual input button
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: TextButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const AddTransactionScreen()),
+                );
+              },
+              icon: const Icon(Icons.edit_note_rounded, size: 22, color: AppColors.textPrimary),
+              label: const Text(
+                'Tambah Manual',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              style: TextButton.styleFrom(
+                backgroundColor: AppColors.surfaceMuted,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
             ),

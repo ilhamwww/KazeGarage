@@ -80,15 +80,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
     return map.entries.toList();
   }
 
-  String _formatCurrencyShort(double amount) {
-    if (amount >= 1000000) {
-      return 'Rp ${(amount / 1000).toStringAsFixed(0)}k';
-    } else if (amount >= 1000) {
-      return 'Rp ${(amount / 1000).toStringAsFixed(0)}k';
-    }
-    return 'Rp ${amount.toStringAsFixed(0)}';
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(

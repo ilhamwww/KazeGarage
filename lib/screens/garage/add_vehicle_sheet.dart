@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/kaze_notifier.dart';
 import '../../data/models/vehicle.dart';
 import '../../providers/vehicle_provider.dart';
 
@@ -142,16 +143,9 @@ class _AddVehicleSheetState extends State<AddVehicleSheet> {
     setState(() => _isLoading = false);
     if (success && mounted) {
       Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(isEditing ? 'Kendaraan diperbarui' : 'Kendaraan ditambahkan'),
-          backgroundColor: AppColors.success,
-        ),
-      );
+      KazeNotifier.success(context, isEditing ? 'Kendaraan diperbarui' : 'Kendaraan ditambahkan');
     } else if (!success && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Gagal menyimpan kendaraan'), backgroundColor: AppColors.chartRed),
-      );
+      KazeNotifier.error(context, 'Gagal menyimpan kendaraan');
     }
   }
 

@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/kaze_notifier.dart';
 import '../../data/models/vehicle.dart';
 import '../../providers/vehicle_provider.dart';
 import '../../providers/transaction_provider.dart';
@@ -52,12 +53,7 @@ class VehicleDetailSheet extends StatelessWidget {
               final success = await provider.deleteVehicle(vehicle.id);
               if (success && context.mounted) {
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Kendaraan dihapus'),
-                    backgroundColor: AppColors.chartRed,
-                  ),
-                );
+                KazeNotifier.success(context, 'Kendaraan dihapus');
               }
             },
             style: TextButton.styleFrom(foregroundColor: AppColors.chartRed),

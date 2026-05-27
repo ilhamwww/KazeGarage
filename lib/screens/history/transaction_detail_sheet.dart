@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/kaze_notifier.dart';
 import '../../data/models/fuel_transaction.dart';
 import '../../providers/transaction_provider.dart';
 
@@ -40,12 +41,7 @@ class TransactionDetailSheet extends StatelessWidget {
               final success = await provider.deleteTransaction(transaction.id);
               if (success && context.mounted) {
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Transaksi dihapus'),
-                    backgroundColor: AppColors.chartRed,
-                  ),
-                );
+                KazeNotifier.success(context, 'Transaksi dihapus');
               }
             },
             style: TextButton.styleFrom(foregroundColor: AppColors.chartRed),

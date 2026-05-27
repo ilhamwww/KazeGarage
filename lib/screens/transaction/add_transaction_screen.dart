@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/kaze_notifier.dart';
 import '../../data/models/vehicle.dart';
 import '../../providers/vehicle_provider.dart';
 import '../../providers/transaction_provider.dart';
@@ -92,9 +93,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedVehicle == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Pilih kendaraan terlebih dahulu'), backgroundColor: AppColors.chartRed),
-      );
+      KazeNotifier.error(context, 'Pilih kendaraan terlebih dahulu');
       return;
     }
 
@@ -116,16 +115,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
     if (success && mounted) {
       Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Transaksi berhasil disimpan'),
-          backgroundColor: AppColors.accent,
-        ),
-      );
+      KazeNotifier.success(context, 'Transaksi berhasil disimpan');
     } else if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Gagal menyimpan transaksi'), backgroundColor: AppColors.chartRed),
-      );
+      KazeNotifier.error(context, 'Gagal menyimpan transaksi');
     }
   }
 
