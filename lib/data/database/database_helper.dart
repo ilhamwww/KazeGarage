@@ -69,13 +69,17 @@ class DatabaseHelper {
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
-      await db.execute('ALTER TABLE fuel_transactions ADD COLUMN fuel_type TEXT');
+      await db.execute(
+        'ALTER TABLE fuel_transactions ADD COLUMN fuel_type TEXT',
+      );
     }
     if (oldVersion < 3) {
       await db.execute('ALTER TABLE vehicles ADD COLUMN vehicle_type TEXT');
       await db.execute('ALTER TABLE vehicles ADD COLUMN service_date TEXT');
       await db.execute('ALTER TABLE vehicles ADD COLUMN tax_date TEXT');
-      await db.execute('ALTER TABLE vehicles ADD COLUMN is_active INTEGER NOT NULL DEFAULT 0');
+      await db.execute(
+        'ALTER TABLE vehicles ADD COLUMN is_active INTEGER NOT NULL DEFAULT 0',
+      );
     }
   }
 
@@ -108,11 +112,7 @@ class DatabaseHelper {
       where: 'vehicle_id = ?',
       whereArgs: [id],
     );
-    return await db.delete(
-      'vehicles',
-      where: 'id = ?',
-      whereArgs: [id],
-    );
+    return await db.delete('vehicles', where: 'id = ?', whereArgs: [id]);
   }
 
   Future<List<Vehicle>> getAllVehicles() async {
@@ -123,11 +123,7 @@ class DatabaseHelper {
 
   Future<Vehicle?> getVehicleById(String id) async {
     final db = await database;
-    final maps = await db.query(
-      'vehicles',
-      where: 'id = ?',
-      whereArgs: [id],
-    );
+    final maps = await db.query('vehicles', where: 'id = ?', whereArgs: [id]);
     if (maps.isEmpty) return null;
     return Vehicle.fromMap(maps.first);
   }
@@ -168,7 +164,9 @@ class DatabaseHelper {
     return maps.map((map) => FuelTransaction.fromMap(map)).toList();
   }
 
-  Future<List<FuelTransaction>> getTransactionsByVehicle(String vehicleId) async {
+  Future<List<FuelTransaction>> getTransactionsByVehicle(
+    String vehicleId,
+  ) async {
     final db = await database;
     final maps = await db.query(
       'fuel_transactions',
@@ -251,9 +249,7 @@ class DatabaseHelper {
 
   Future<int> getVehicleCount() async {
     final db = await database;
-    final result = await db.rawQuery(
-      'SELECT COUNT(*) as count FROM vehicles',
-    );
+    final result = await db.rawQuery('SELECT COUNT(*) as count FROM vehicles');
     return (result.first['count'] as int?) ?? 0;
   }
 
@@ -280,5 +276,63 @@ class DatabaseHelper {
       GROUP BY t.vehicle_id
       ORDER BY total DESC
     ''');
+  }
+
+  // ==================== BACKUP / RESTORE ====================
+
+  /// Hapus semua data dan ganti dengan data dari backup.
+  /// Dijalankan dalam satu transaction supaya atomic — kalau gagal di tengah,
+  /// state database tidak korup.
+  Future<void> replaceAllData({
+    required List<Vehicle> vehicles,
+    required List<FuelTransaction> transactions,
+  }) async {
+    final db = await database;
+    await db.transaction((txn) async {
+      // Bersihkan tabel dulu (urutan: child → parent untuk FK)
+      await txn.delete('fuel_transactions');
+      await txn.delete('vehicles');
+
+      // Insert vehicles dulu agar FK constraint puas
+      for (final v in vehicles) {
+        await txn.insert(
+          'vehicles',
+          v.toMap(),
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+      for (final t in transactions) {
+        await txn.insert(
+          'fuel_transactions',
+          t.toMap(),
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+    });
+  }
+
+  /// Merge data backup ke database existing — entry dengan id sama akan di-replace,
+  /// entry baru ditambahkan, entry lokal yang tidak ada di backup tetap dipertahankan.
+  Future<void> mergeData({
+    required List<Vehicle> vehicles,
+    required List<FuelTransaction> transactions,
+  }) async {
+    final db = await database;
+    await db.transaction((txn) async {
+      for (final v in vehicles) {
+        await txn.insert(
+          'vehicles',
+          v.toMap(),
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+      for (final t in transactions) {
+        await txn.insert(
+          'fuel_transactions',
+          t.toMap(),
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+    });
   }
 }

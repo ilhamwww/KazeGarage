@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Aturan backup penuh untuk Android Auto Backup (API 23+).
+  Dipakai otomatis oleh sistem Android untuk membackup data app
+  ke Google Drive (akun pengguna). Saat aplikasi di-install ulang,
+  data akan otomatis dipulihkan.
+
+  Yang di-include:
+  - SQLite database utama (kaze_garage.db) + journal/WAL
+  - Folder receipts (foto struk yang disimpan di-internal storage)
+  - Folder Backups (file .kazegarage manual export)
+  - SharedPreferences (jika dipakai di kemudian hari)
+
+  Domain "external" mereferensikan getExternalStorageDirectory(), yaitu
+  /storage/emulated/0/Android/data/<package>/files/
+-->
+<full-backup-content>
+    <include domain="database" path="kaze_garage.db" />
+    <include domain="database" path="kaze_garage.db-journal" />
+    <include domain="database" path="kaze_garage.db-shm" />
+    <include domain="database" path="kaze_garage.db-wal" />
+    <include domain="file" path="receipts/" />
+    <include domain="external" path="Backups/" />
+    <include domain="sharedpref" path="." />
+</full-backup-content>

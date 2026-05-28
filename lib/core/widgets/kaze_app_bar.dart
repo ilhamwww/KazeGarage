@@ -1,14 +1,25 @@
 // Shared App Bar untuk semua halaman utama KazeGarage
-// Menampilkan avatar, brand "KazeGarage", dan ikon notifikasi
+// Menampilkan avatar, brand "KazeGarage", dan ikon notifikasi.
+// Tap avatar default-nya membuka Backup & Restore sheet.
 
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
+import '../../screens/settings/backup_restore_sheet.dart';
 
 class KazeAppBar extends StatelessWidget implements PreferredSizeWidget {
   final VoidCallback? onNotificationTap;
   final VoidCallback? onAvatarTap;
 
   const KazeAppBar({super.key, this.onNotificationTap, this.onAvatarTap});
+
+  void _openBackupSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => const BackupRestoreSheet(),
+    );
+  }
 
   @override
   Size get preferredSize => const Size.fromHeight(72);
@@ -23,9 +34,9 @@ class KazeAppBar extends StatelessWidget implements PreferredSizeWidget {
         decoration: const BoxDecoration(color: AppColors.surface),
         child: Row(
           children: [
-            // Avatar
+            // Avatar — default: open Backup & Restore sheet
             GestureDetector(
-              onTap: onAvatarTap,
+              onTap: onAvatarTap ?? () => _openBackupSheet(context),
               child: Container(
                 width: 38,
                 height: 38,

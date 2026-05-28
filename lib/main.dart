@@ -5,7 +5,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'core/theme/app_colors.dart';
 import 'core/theme/app_theme.dart';
+import 'core/widgets/kaze_notifier.dart';
+import 'data/services/backup_service.dart';
 import 'providers/vehicle_provider.dart';
 import 'providers/transaction_provider.dart';
 import 'providers/fuel_price_provider.dart';
@@ -69,8 +74,137 @@ class _AppInitializerState extends State<AppInitializer> {
       vehicleProvider.loadVehicles(),
       transactionProvider.loadTransactions(),
     ]);
+
+    // Cek auto-restore: kalau DB kosong dan ada backup file di internal storage,
+    // tawarkan pemulihan otomatis (case: app baru di-install ulang setelah uninstall).
+    if (mounted &&
+        vehicleProvider.vehicles.isEmpty &&
+        transactionProvider.transactions.isEmpty) {
+      await _maybeOfferAutoRestore();
+    }
+
     if (mounted) {
       setState(() => _isInitialized = true);
+    }
+  }
+
+  // Key untuk menandai bahwa dialog auto-restore sudah pernah ditampilkan.
+  // Mencegah dialog muncul ulang setiap launch jika user pilih "Nanti Saja".
+  static const String _autoRestoreFlagKey = 'auto_restore_offered_v1';
+
+  Future<void> _maybeOfferAutoRestore() async {
+    // Cek flag — kalau sudah pernah offer, skip
+    final prefs = await SharedPreferences.getInstance();
+    final alreadyOffered = prefs.getBool(_autoRestoreFlagKey) ?? false;
+    if (alreadyOffered) return;
+
+    final service = BackupService();
+    final files = await service.listBackupFiles();
+    if (files.isEmpty || !mounted) {
+      // Tetap tandai sudah dicek agar tidak scan tiap launch
+      await prefs.setBool(_autoRestoreFlagKey, true);
+      return;
+    }
+
+    final latest = files.first;
+    final stat = latest.statSync();
+    final dateLabel = DateFormat(
+      'd MMM yyyy, HH:mm',
+      'id_ID',
+    ).format(stat.modified);
+
+    final shouldRestore = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Backup Ditemukan',
+          style: TextStyle(fontWeight: FontWeight.w800),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Aplikasi menemukan file backup tersimpan di HP. Pulihkan data sekarang?',
+              style: TextStyle(fontSize: 13, height: 1.4),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceMuted,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    latest.uri.pathSegments.last,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontFamily: 'monospace',
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    dateLabel,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actionsPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Nanti Saja'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.accent),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Pulihkan'),
+          ),
+        ],
+      ),
+    );
+
+    // Tandai dialog sudah pernah muncul — apapun pilihan user.
+    await prefs.setBool(_autoRestoreFlagKey, true);
+
+    if (shouldRestore != true || !mounted) return;
+
+    try {
+      final parsed = await service.parseBackupFile(latest);
+      final result = await service.applyRestore(
+        vehicles: parsed.vehicles,
+        transactions: parsed.transactions,
+        strategy: RestoreStrategy.replace,
+      );
+      if (!mounted) return;
+      if (result.success) {
+        await context.read<VehicleProvider>().loadVehicles();
+        if (!mounted) return;
+        await context.read<TransactionProvider>().loadTransactions();
+        if (!mounted) return;
+        KazeNotifier.success(
+          context,
+          'Data berhasil dipulihkan: ${result.vehicleCount} kendaraan, ${result.transactionCount} transaksi',
+        );
+      } else {
+        KazeNotifier.error(context, result.message ?? 'Gagal memulihkan data');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      KazeNotifier.error(context, 'Gagal memulihkan: $e');
     }
   }
 

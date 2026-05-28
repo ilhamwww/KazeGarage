@@ -44,6 +44,17 @@ KazeGarage adalah aplikasi manajemen kendaraan personal **offline-first** yang b
 - **Detail Transaksi** via bottom sheet (`transaction_detail_sheet.dart`): tampilkan semua field termasuk thumbnail foto struk.
 - **Edit & Hapus** transaksi langsung dari detail sheet.
 
+### E. Backup & Restore Data (`screens/settings/backup_restore_sheet.dart`)
+Diakses dengan **tap avatar** di app bar. Menyediakan dua lapis perlindungan supaya data tidak hilang saat aplikasi di-uninstall:
+
+1. **Android Auto Backup (otomatis)** — dikonfigurasi via `android/app/src/main/res/xml/backup_rules.xml` + `data_extraction_rules.xml` dan flag `android:allowBackup="true"` di `AndroidManifest.xml`. Database SQLite + folder `receipts/` (foto struk) + SharedPreferences di-backup otomatis ke Google Drive saat HP charging + WiFi + idle. Saat aplikasi di-install ulang (di HP yang sama atau HP baru dengan akun Google sama), data akan otomatis dipulihkan tanpa intervensi user.
+
+2. **Manual Export / Import JSON** (via `BackupService` + `share_plus` + `file_picker`) — untuk redudansi dan kontrol penuh user:
+   - **Ekspor Data:** men-serialize semua `vehicles` + `transactions` ke JSON terstruktur (`{ version, app, exportedAt, vehicles, transactions }`), simpan ke folder temp dengan nama `kazegarage-backup-YYYYMMDD-HHMM.json`, lalu trigger system share sheet sehingga user bisa simpan ke Drive, email, WhatsApp, atau penyimpanan lain.
+   - **Pulihkan dari File:** pilih file `.json` via `file_picker`, validasi format & versi, lalu konfirmasi via dialog. Dua strategi tersedia:
+     - **Ganti Semua** — hapus data lokal lalu pakai data backup (transaksional, atomic)
+     - **Gabungkan** — backup overwrite entry dengan id sama, entry lokal yang tidak ada di backup tetap dipertahankan
+
 ## 3. Alur Pengguna Utama (User Flow)
 1. **Pendaftaran Kendaraan:** Buka tab *Garasi* -> ketuk tombol *Tambah Kendaraan* -> isi form -> simpan.
 2. **Pencatatan BBM via Scan:** Tekan FAB *Scan* di tengah bottom nav -> ambil foto struk dari kamera atau galeri -> sistem OCR + parser otomatis mengisi field -> review di halaman *Add Transaction* -> pilih kendaraan -> simpan.
@@ -112,7 +123,8 @@ lib/
 │   └── services/
 │       ├── fuel_price_service.dart       # Scrape harga BBM (http + html parser)
 │       ├── fuel_efficiency_service.dart  # Hitung KM/L per kendaraan
-│       └── fuel_prediction_service.dart  # Prediksi tanggal pengisian berikutnya
+│       ├── fuel_prediction_service.dart  # Prediksi tanggal pengisian berikutnya
+│       └── backup_service.dart           # Export/import JSON + share/file picker
 ├── providers/
 │   ├── vehicle_provider.dart
 │   ├── transaction_provider.dart
@@ -132,6 +144,8 @@ lib/
     ├── history/
     │   ├── history_screen.dart
     │   └── transaction_detail_sheet.dart
+    └── settings/
+        └── backup_restore_sheet.dart    # Bottom sheet Backup & Restore
 ```
 
 ### State Management
@@ -166,6 +180,9 @@ lib/
 | Permission | `permission_handler` | `^11.4.0` |
 | HTTP | `http` | `^1.2.2` |
 | HTML parser | `html` | `^0.15.4` |
+| File system path | `path_provider` | `^2.1.5` |
+| System share sheet | `share_plus` | `^10.1.4` |
+| File picker (import backup) | `file_picker` | `^8.1.7` |
 | Launcher icon (dev) | `flutter_launcher_icons` | `^0.14.4` |
 | Lints (dev) | `flutter_lints` | `^6.0.0` |
 
@@ -206,3 +223,15 @@ Sebagai Flutter developer, tugasmu adalah **memelihara dan mengembangkan aplikas
 - Aplikasi **harus** dapat digunakan tanpa koneksi internet.
 - Semua data inti (kendaraan + transaksi + foto struk) disimpan di SQLite lokal.
 - Fitur online (scrape harga BBM) bersifat *progressive enhancement* — UI tetap berfungsi tanpa data harga, dengan fallback gracefully.
+
+## 12. Data Persistence & Survivability
+Data harus **bertahan melewati uninstall** aplikasi. Strategi:
+
+- **Android Auto Backup** (lapis utama, zero-friction): otomatis ke Google Drive akun pengguna. Konfigurasi:
+  - `AndroidManifest.xml` → `android:allowBackup="true"`, `android:fullBackupContent="@xml/backup_rules"`, `android:dataExtractionRules="@xml/data_extraction_rules"`
+  - Whitelist: `kaze_garage.db` (+ journal/wal/shm), folder `receipts/`, SharedPreferences
+  - Restore terjadi otomatis saat aplikasi di-install ulang (HP yang sama atau HP baru dengan akun Google sama)
+
+- **Manual JSON Export/Import** (lapis kedua, eksplisit): user bisa kapan saja men-export `.json` dan menyimpannya ke cloud manapun. Format file menyertakan `version` untuk forward-compat, dan `app: "KazeGarage"` untuk validasi. Restore bersifat transaksional (atomic) — kalau gagal di tengah, database tidak korup.
+
+Kombinasi keduanya memberikan **defense in depth**: kalau Auto Backup gagal/dimatikan user, manual export tetap menjadi safety net.
