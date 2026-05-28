@@ -7,7 +7,6 @@ import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import '../../core/theme/app_colors.dart';
-import '../../core/widgets/kaze_app_bar.dart';
 import '../../providers/vehicle_provider.dart';
 import '../../providers/transaction_provider.dart';
 import '../../providers/fuel_price_provider.dart';
@@ -71,40 +70,42 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: const KazeAppBar(),
-      body: RefreshIndicator(
-        color: AppColors.accent,
-        onRefresh: _loadData,
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildHeroCard(),
-              const SizedBox(height: 24),
-              _buildSectionTitle('Prediksi Pengisian Berikutnya'),
-              const SizedBox(height: 12),
-              _buildPredictionSection(),
-              const SizedBox(height: 24),
-              _buildSectionTitle('Statistik Harga'),
-              const SizedBox(height: 12),
-              _buildPriceStats(),
-              const SizedBox(height: 24),
-              _buildSectionTitle('Volume Statistik'),
-              const SizedBox(height: 12),
-              _buildVolumeStats(),
-              const SizedBox(height: 24),
-              _buildEfficiencyChart(),
-              const SizedBox(height: 24),
-              _buildFuelPricesHeader(),
-              const SizedBox(height: 12),
-              _buildFuelPricesSection(),
-              const SizedBox(height: 24),
-              _buildRecentActivityHeader(),
-              const SizedBox(height: 12),
-              _buildRecentActivity(),
-            ],
+      body: SafeArea(
+        bottom: false,
+        child: RefreshIndicator(
+          color: AppColors.accent,
+          onRefresh: _loadData,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildHeroCard(),
+                const SizedBox(height: 24),
+                _buildSectionTitle('Prediksi Pengisian Berikutnya'),
+                const SizedBox(height: 12),
+                _buildPredictionSection(),
+                const SizedBox(height: 24),
+                _buildSectionTitle('Statistik Harga'),
+                const SizedBox(height: 12),
+                _buildPriceStats(),
+                const SizedBox(height: 24),
+                _buildSectionTitle('Volume Statistik'),
+                const SizedBox(height: 12),
+                _buildVolumeStats(),
+                const SizedBox(height: 24),
+                _buildEfficiencyChart(),
+                const SizedBox(height: 24),
+                _buildFuelPricesHeader(),
+                const SizedBox(height: 12),
+                _buildFuelPricesSection(),
+                const SizedBox(height: 24),
+                _buildRecentActivityHeader(),
+                const SizedBox(height: 12),
+                _buildRecentActivity(),
+              ],
+            ),
           ),
         ),
       ),

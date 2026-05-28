@@ -11,6 +11,7 @@ import 'package:provider/provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/kaze_notifier.dart';
 import '../../data/services/backup_service.dart';
+import '../../providers/service_provider.dart';
 import '../../providers/transaction_provider.dart';
 import '../../providers/vehicle_provider.dart';
 
@@ -98,11 +99,13 @@ class _BackupRestoreSheetState extends State<BackupRestoreSheet> {
         applyFn: () => _service.applyRestore(
           vehicles: parsed.vehicles,
           transactions: parsed.transactions,
+          serviceRecords: parsed.serviceRecords,
           strategy: RestoreStrategy.replace,
         ),
         applyFnMerge: () => _service.applyRestore(
           vehicles: parsed.vehicles,
           transactions: parsed.transactions,
+          serviceRecords: parsed.serviceRecords,
           strategy: RestoreStrategy.merge,
         ),
       );
@@ -127,11 +130,13 @@ class _BackupRestoreSheetState extends State<BackupRestoreSheet> {
         applyFn: () => _service.applyRestore(
           vehicles: parsed.vehicles,
           transactions: parsed.transactions,
+          serviceRecords: parsed.serviceRecords,
           strategy: RestoreStrategy.replace,
         ),
         applyFnMerge: () => _service.applyRestore(
           vehicles: parsed.vehicles,
           transactions: parsed.transactions,
+          serviceRecords: parsed.serviceRecords,
           strategy: RestoreStrategy.merge,
         ),
       );
@@ -171,6 +176,8 @@ class _BackupRestoreSheetState extends State<BackupRestoreSheet> {
     await context.read<VehicleProvider>().loadVehicles();
     if (!mounted) return;
     await context.read<TransactionProvider>().loadTransactions();
+    if (!mounted) return;
+    await context.read<ServiceProvider>().loadRecords();
     if (!mounted) return;
 
     KazeNotifier.success(

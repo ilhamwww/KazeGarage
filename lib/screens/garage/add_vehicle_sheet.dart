@@ -25,6 +25,8 @@ class _AddVehicleSheetState extends State<AddVehicleSheet> {
   final _nameController = TextEditingController();
   final _plateController = TextEditingController();
   final _tankController = TextEditingController();
+  final _intervalKmController = TextEditingController();
+  final _intervalMonthsController = TextEditingController();
 
   String? _selectedType;
   DateTime? _serviceDate;
@@ -58,6 +60,12 @@ class _AddVehicleSheetState extends State<AddVehicleSheet> {
       _taxDate = v.taxDate;
       _imagePath = v.imageUrl;
       _isActive = v.isActive;
+      if (v.serviceIntervalKm != null) {
+        _intervalKmController.text = v.serviceIntervalKm!.toStringAsFixed(0);
+      }
+      if (v.serviceIntervalMonths != null) {
+        _intervalMonthsController.text = v.serviceIntervalMonths!.toString();
+      }
     }
   }
 
@@ -66,6 +74,8 @@ class _AddVehicleSheetState extends State<AddVehicleSheet> {
     _nameController.dispose();
     _plateController.dispose();
     _tankController.dispose();
+    _intervalKmController.dispose();
+    _intervalMonthsController.dispose();
     super.dispose();
   }
 
@@ -112,6 +122,9 @@ class _AddVehicleSheetState extends State<AddVehicleSheet> {
     final provider = context.read<VehicleProvider>();
     bool success;
 
+    final intervalKm = double.tryParse(_intervalKmController.text.trim());
+    final intervalMonths = int.tryParse(_intervalMonthsController.text.trim());
+
     if (isEditing) {
       final updated = widget.vehicle!.copyWith(
         name: _nameController.text.trim(),
@@ -122,6 +135,8 @@ class _AddVehicleSheetState extends State<AddVehicleSheet> {
         taxDate: _taxDate,
         imageUrl: _imagePath,
         isActive: _isActive,
+        serviceIntervalKm: intervalKm,
+        serviceIntervalMonths: intervalMonths,
       );
       success = await provider.updateVehicle(updated);
       if (success && _isActive) {
@@ -137,13 +152,18 @@ class _AddVehicleSheetState extends State<AddVehicleSheet> {
         serviceDate: _serviceDate,
         taxDate: _taxDate,
         isActive: _isActive,
+        serviceIntervalKm: intervalKm,
+        serviceIntervalMonths: intervalMonths,
       );
     }
 
     setState(() => _isLoading = false);
     if (success && mounted) {
       Navigator.pop(context);
-      KazeNotifier.success(context, isEditing ? 'Kendaraan diperbarui' : 'Kendaraan ditambahkan');
+      KazeNotifier.success(
+        context,
+        isEditing ? 'Kendaraan diperbarui' : 'Kendaraan ditambahkan',
+      );
     } else if (!success && mounted) {
       KazeNotifier.error(context, 'Gagal menyimpan kendaraan');
     }
@@ -152,7 +172,9 @@ class _AddVehicleSheetState extends State<AddVehicleSheet> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
       child: Container(
         decoration: const BoxDecoration(
           color: AppColors.background,
@@ -179,7 +201,11 @@ class _AddVehicleSheetState extends State<AddVehicleSheet> {
                 const SizedBox(height: 20),
                 Text(
                   isEditing ? 'Edit Kendaraan' : 'Tambah Kendaraan',
-                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textPrimary,
+                  ),
                 ),
                 const SizedBox(height: 20),
 
@@ -191,9 +217,14 @@ class _AddVehicleSheetState extends State<AddVehicleSheet> {
                 const SizedBox(height: 6),
                 TextFormField(
                   controller: _nameController,
-                  decoration: _buildDecoration('Contoh: Honda Beat', icon: Icons.directions_car),
+                  decoration: _buildDecoration(
+                    'Contoh: Honda Beat',
+                    icon: Icons.directions_car,
+                  ),
                   textCapitalization: TextCapitalization.words,
-                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Nama kendaraan wajib diisi' : null,
+                  validator: (v) => (v == null || v.trim().isEmpty)
+                      ? 'Nama kendaraan wajib diisi'
+                      : null,
                 ),
                 const SizedBox(height: 16),
 
@@ -201,9 +232,14 @@ class _AddVehicleSheetState extends State<AddVehicleSheet> {
                 const SizedBox(height: 6),
                 TextFormField(
                   controller: _plateController,
-                  decoration: _buildDecoration('Contoh: B 1234 ABC', icon: Icons.confirmation_number),
+                  decoration: _buildDecoration(
+                    'Contoh: B 1234 ABC',
+                    icon: Icons.confirmation_number,
+                  ),
                   textCapitalization: TextCapitalization.characters,
-                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Plat nomor wajib diisi' : null,
+                  validator: (v) => (v == null || v.trim().isEmpty)
+                      ? 'Plat nomor wajib diisi'
+                      : null,
                 ),
                 const SizedBox(height: 16),
 
@@ -211,10 +247,15 @@ class _AddVehicleSheetState extends State<AddVehicleSheet> {
                 const SizedBox(height: 6),
                 TextFormField(
                   controller: _tankController,
-                  decoration: _buildDecoration('Contoh: 15', icon: Icons.local_gas_station),
+                  decoration: _buildDecoration(
+                    'Contoh: 15',
+                    icon: Icons.local_gas_station,
+                  ),
                   keyboardType: TextInputType.number,
                   validator: (v) {
-                    if (v == null || v.trim().isEmpty) return 'Kapasitas tangki wajib diisi';
+                    if (v == null || v.trim().isEmpty) {
+                      return 'Kapasitas tangki wajib diisi';
+                    }
                     final n = double.tryParse(v);
                     if (n == null || n <= 0) return 'Masukkan angka yang valid';
                     return null;
@@ -230,20 +271,30 @@ class _AddVehicleSheetState extends State<AddVehicleSheet> {
                   children: _vehicleTypes.map((t) {
                     final isSel = _selectedType == t;
                     return GestureDetector(
-                      onTap: () => setState(() => _selectedType = isSel ? null : t),
+                      onTap: () =>
+                          setState(() => _selectedType = isSel ? null : t),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 8,
+                        ),
                         decoration: BoxDecoration(
                           color: isSel ? AppColors.primary : AppColors.surface,
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: isSel ? AppColors.primary : AppColors.divider),
+                          border: Border.all(
+                            color: isSel
+                                ? AppColors.primary
+                                : AppColors.divider,
+                          ),
                         ),
                         child: Text(
                           t,
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
-                            color: isSel ? Colors.white : AppColors.textSecondary,
+                            color: isSel
+                                ? Colors.white
+                                : AppColors.textSecondary,
                           ),
                         ),
                       ),
@@ -254,16 +305,73 @@ class _AddVehicleSheetState extends State<AddVehicleSheet> {
 
                 Row(
                   children: [
-                    Expanded(child: _buildDateField('Tanggal Servis', _serviceDate, () => _pickDate(true))),
+                    Expanded(
+                      child: _buildDateField(
+                        'Tanggal Servis',
+                        _serviceDate,
+                        () => _pickDate(true),
+                      ),
+                    ),
                     const SizedBox(width: 12),
-                    Expanded(child: _buildDateField('Tanggal Pajak', _taxDate, () => _pickDate(false))),
+                    Expanded(
+                      child: _buildDateField(
+                        'Tanggal Pajak',
+                        _taxDate,
+                        () => _pickDate(false),
+                      ),
+                    ),
                   ],
+                ),
+                const SizedBox(height: 16),
+
+                // Interval servis (untuk auto-suggest reminder di halaman Servis)
+                _buildLabel('Interval Servis Berkala'),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: _intervalKmController,
+                        decoration: _buildDecoration(
+                          'Tiap berapa KM',
+                          icon: Icons.speed,
+                        ),
+                        keyboardType: TextInputType.number,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: TextFormField(
+                        controller: _intervalMonthsController,
+                        decoration: _buildDecoration(
+                          'Tiap berapa bulan',
+                          icon: Icons.calendar_month,
+                        ),
+                        keyboardType: TextInputType.number,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                const Padding(
+                  padding: EdgeInsets.only(left: 4),
+                  child: Text(
+                    'Contoh: 5000 km / 6 bulan untuk ganti oli mesin. Dipakai untuk reminder otomatis di halaman Servis.',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textSecondary,
+                      height: 1.4,
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 16),
 
                 // Active toggle
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.surface,
                     borderRadius: BorderRadius.circular(12),
@@ -275,10 +383,21 @@ class _AddVehicleSheetState extends State<AddVehicleSheet> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('Set Sebagai Kendaraan Utama',
-                                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
-                            Text('Akan dipakai default saat scan struk',
-                                style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                            Text(
+                              'Set Sebagai Kendaraan Utama',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                            Text(
+                              'Akan dipakai default saat scan struk',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -301,7 +420,10 @@ class _AddVehicleSheetState extends State<AddVehicleSheet> {
                         ? const SizedBox(
                             width: 22,
                             height: 22,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
                           )
                         : Text(isEditing ? 'Perbarui' : 'Simpan'),
                   ),
@@ -326,7 +448,10 @@ class _AddVehicleSheetState extends State<AddVehicleSheet> {
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: AppColors.divider),
         ),
-        child: _imagePath != null && _imagePath!.isNotEmpty && File(_imagePath!).existsSync()
+        child:
+            _imagePath != null &&
+                _imagePath!.isNotEmpty &&
+                File(_imagePath!).existsSync()
             ? ClipRRect(
                 borderRadius: BorderRadius.circular(16),
                 child: Image.file(File(_imagePath!), fit: BoxFit.cover),
@@ -334,10 +459,20 @@ class _AddVehicleSheetState extends State<AddVehicleSheet> {
             : const Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.add_a_photo_outlined, size: 32, color: AppColors.textHint),
+                  Icon(
+                    Icons.add_a_photo_outlined,
+                    size: 32,
+                    color: AppColors.textHint,
+                  ),
                   SizedBox(height: 6),
-                  Text('Tambah Foto Kendaraan',
-                      style: TextStyle(fontSize: 12, color: AppColors.textSecondary, fontWeight: FontWeight.w600)),
+                  Text(
+                    'Tambah Foto Kendaraan',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ],
               ),
       ),
@@ -347,7 +482,11 @@ class _AddVehicleSheetState extends State<AddVehicleSheet> {
   Widget _buildLabel(String label) {
     return Text(
       label,
-      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+      style: const TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.w700,
+        color: AppColors.textPrimary,
+      ),
     );
   }
 
@@ -368,14 +507,24 @@ class _AddVehicleSheetState extends State<AddVehicleSheet> {
             ),
             child: Row(
               children: [
-                const Icon(Icons.calendar_today, size: 16, color: AppColors.textSecondary),
+                const Icon(
+                  Icons.calendar_today,
+                  size: 16,
+                  color: AppColors.textSecondary,
+                ),
                 const SizedBox(width: 8),
                 Text(
-                  date != null ? DateFormat('dd MMM yyyy', 'id_ID').format(date) : 'Pilih tanggal',
+                  date != null
+                      ? DateFormat('dd MMM yyyy', 'id_ID').format(date)
+                      : 'Pilih tanggal',
                   style: TextStyle(
                     fontSize: 13,
-                    color: date != null ? AppColors.textPrimary : AppColors.textHint,
-                    fontWeight: date != null ? FontWeight.w600 : FontWeight.normal,
+                    color: date != null
+                        ? AppColors.textPrimary
+                        : AppColors.textHint,
+                    fontWeight: date != null
+                        ? FontWeight.w600
+                        : FontWeight.normal,
                   ),
                 ),
               ],
@@ -390,7 +539,9 @@ class _AddVehicleSheetState extends State<AddVehicleSheet> {
     return InputDecoration(
       hintText: hint,
       hintStyle: const TextStyle(fontSize: 13, color: AppColors.textHint),
-      prefixIcon: icon != null ? Icon(icon, size: 18, color: AppColors.textSecondary) : null,
+      prefixIcon: icon != null
+          ? Icon(icon, size: 18, color: AppColors.textSecondary)
+          : null,
       filled: true,
       fillColor: AppColors.surface,
       border: OutlineInputBorder(

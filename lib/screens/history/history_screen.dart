@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../core/theme/app_colors.dart';
-import '../../core/widgets/kaze_app_bar.dart';
 import '../../providers/vehicle_provider.dart';
 import '../../providers/transaction_provider.dart';
 import '../../data/models/fuel_transaction.dart';
@@ -23,7 +22,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
   String _searchQuery = '';
   String _selectedFuelFilter = 'All';
 
-  static const List<String> _fuelFilters = ['All', 'Pertalite', 'Pertamax', 'Pertamax Turbo', 'Solar', 'Dexlite'];
+  static const List<String> _fuelFilters = [
+    'All',
+    'Pertalite',
+    'Pertamax',
+    'Pertamax Turbo',
+    'Solar',
+    'Dexlite',
+  ];
 
   @override
   void initState() {
@@ -46,12 +52,17 @@ class _HistoryScreenState extends State<HistoryScreen> {
     await context.read<TransactionProvider>().loadTransactions();
   }
 
-  List<FuelTransaction> _applyFilters(List<FuelTransaction> transactions, VehicleProvider vp) {
+  List<FuelTransaction> _applyFilters(
+    List<FuelTransaction> transactions,
+    VehicleProvider vp,
+  ) {
     return transactions.where((t) {
       // Fuel filter
       if (_selectedFuelFilter != 'All') {
         if (t.fuelType == null) return false;
-        if (!t.fuelType!.toLowerCase().contains(_selectedFuelFilter.toLowerCase())) {
+        if (!t.fuelType!.toLowerCase().contains(
+          _selectedFuelFilter.toLowerCase(),
+        )) {
           return false;
         }
       }
@@ -62,7 +73,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
         final vehicleName = vehicle?.name.toLowerCase() ?? '';
         final fuelType = t.fuelType?.toLowerCase() ?? '';
         final notes = t.notes?.toLowerCase() ?? '';
-        if (!vehicleName.contains(q) && !fuelType.contains(q) && !notes.contains(q)) {
+        if (!vehicleName.contains(q) &&
+            !fuelType.contains(q) &&
+            !notes.contains(q)) {
           return false;
         }
       }
@@ -71,7 +84,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 
   /// Group transactions by month, returning a list of (monthLabel, transactions)
-  List<MapEntry<String, List<FuelTransaction>>> _groupByMonth(List<FuelTransaction> transactions) {
+  List<MapEntry<String, List<FuelTransaction>>> _groupByMonth(
+    List<FuelTransaction> transactions,
+  ) {
     final map = <String, List<FuelTransaction>>{};
     for (final t in transactions) {
       final key = DateFormat('MMMM yyyy', 'id_ID').format(t.date).toUpperCase();
@@ -84,10 +99,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: const KazeAppBar(),
       body: Consumer2<TransactionProvider, VehicleProvider>(
         builder: (context, provider, vehicleProvider, _) {
-          final filtered = _applyFilters(provider.transactions, vehicleProvider);
+          final filtered = _applyFilters(
+            provider.transactions,
+            vehicleProvider,
+          );
           return Column(
             children: [
               // Search & filters
@@ -104,15 +121,29 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       ),
                       child: TextField(
                         controller: _searchController,
-                        style: const TextStyle(fontSize: 14, color: AppColors.textPrimary),
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: AppColors.textPrimary,
+                        ),
                         onChanged: (v) => setState(() => _searchQuery = v),
                         decoration: InputDecoration(
                           hintText: 'Search transactions...',
-                          hintStyle: const TextStyle(fontSize: 13, color: AppColors.textHint),
-                          prefixIcon: const Icon(Icons.search, size: 20, color: AppColors.textSecondary),
+                          hintStyle: const TextStyle(
+                            fontSize: 13,
+                            color: AppColors.textHint,
+                          ),
+                          prefixIcon: const Icon(
+                            Icons.search,
+                            size: 20,
+                            color: AppColors.textSecondary,
+                          ),
                           suffixIcon: _searchQuery.isNotEmpty
                               ? IconButton(
-                                  icon: const Icon(Icons.clear, size: 18, color: AppColors.textSecondary),
+                                  icon: const Icon(
+                                    Icons.clear,
+                                    size: 18,
+                                    color: AppColors.textSecondary,
+                                  ),
                                   onPressed: () {
                                     setState(() {
                                       _searchController.clear();
@@ -124,7 +155,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
                           border: InputBorder.none,
                           enabledBorder: InputBorder.none,
                           focusedBorder: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 14,
+                          ),
                           isDense: true,
                         ),
                       ),
@@ -142,11 +175,17 @@ class _HistoryScreenState extends State<HistoryScreen> {
                           final f = _fuelFilters[i];
                           final selected = _selectedFuelFilter == f;
                           return GestureDetector(
-                            onTap: () => setState(() => _selectedFuelFilter = f),
+                            onTap: () =>
+                                setState(() => _selectedFuelFilter = f),
                             child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 6,
+                              ),
                               decoration: BoxDecoration(
-                                color: selected ? AppColors.primary : AppColors.surfaceMuted,
+                                color: selected
+                                    ? AppColors.primary
+                                    : AppColors.surfaceMuted,
                                 borderRadius: BorderRadius.circular(20),
                               ),
                               child: Center(
@@ -155,7 +194,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                   style: TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w600,
-                                    color: selected ? Colors.white : AppColors.textSecondary,
+                                    color: selected
+                                        ? Colors.white
+                                        : AppColors.textSecondary,
                                   ),
                                 ),
                               ),
@@ -171,14 +212,18 @@ class _HistoryScreenState extends State<HistoryScreen> {
               // Transaction list grouped by month
               Expanded(
                 child: provider.isLoading
-                    ? const Center(child: CircularProgressIndicator(color: AppColors.accent))
+                    ? const Center(
+                        child: CircularProgressIndicator(
+                          color: AppColors.accent,
+                        ),
+                      )
                     : filtered.isEmpty
-                        ? _buildEmptyState()
-                        : RefreshIndicator(
-                            color: AppColors.accent,
-                            onRefresh: _loadData,
-                            child: _buildGroupedList(filtered, vehicleProvider),
-                          ),
+                    ? _buildEmptyState()
+                    : RefreshIndicator(
+                        color: AppColors.accent,
+                        onRefresh: _loadData,
+                        child: _buildGroupedList(filtered, vehicleProvider),
+                      ),
               ),
             ],
           );
@@ -187,7 +232,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
-  Widget _buildGroupedList(List<FuelTransaction> transactions, VehicleProvider vp) {
+  Widget _buildGroupedList(
+    List<FuelTransaction> transactions,
+    VehicleProvider vp,
+  ) {
     final groups = _groupByMonth(transactions);
     return ListView.builder(
       physics: const AlwaysScrollableScrollPhysics(),
@@ -251,12 +299,20 @@ class _HistoryScreenState extends State<HistoryScreen> {
               color: AppColors.surfaceMuted,
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.receipt_long, size: 40, color: AppColors.textHint),
+            child: const Icon(
+              Icons.receipt_long,
+              size: 40,
+              color: AppColors.textHint,
+            ),
           ),
           const SizedBox(height: 20),
           const Text(
             'Belum Ada Transaksi',
-            style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+            style: TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary,
+            ),
           ),
           const SizedBox(height: 6),
           const Text(
@@ -319,7 +375,11 @@ class _TransactionCard extends StatelessWidget {
                 color: AppColors.surfaceMuted,
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(_typeIcon(), color: AppColors.textSecondary, size: 18),
+              child: Icon(
+                _typeIcon(),
+                color: AppColors.textSecondary,
+                size: 18,
+              ),
             ),
             const SizedBox(width: 12),
             // Vehicle + fuel

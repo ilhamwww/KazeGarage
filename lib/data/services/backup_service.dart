@@ -28,6 +28,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:share_plus/share_plus.dart';
 import '../database/database_helper.dart';
 import '../models/fuel_transaction.dart';
+import '../models/service_record.dart';
 import '../models/vehicle.dart';
 
 /// Strategi restore saat data lokal sudah ada
@@ -133,6 +134,7 @@ class BackupService {
     try {
       final vehicles = await _db.getAllVehicles();
       final transactions = await _db.getAllTransactions();
+      final serviceRecords = await _db.getAllServiceRecords();
 
       final payload = {
         'version': _formatVersion,
@@ -140,6 +142,7 @@ class BackupService {
         'exportedAt': DateTime.now().toIso8601String(),
         'vehicles': vehicles.map((v) => v.toMap()).toList(),
         'transactions': transactions.map((t) => t.toMap()).toList(),
+        'serviceRecords': serviceRecords.map((s) => s.toMap()).toList(),
       };
 
       final jsonString = const JsonEncoder.withIndent('  ').convert(payload);
@@ -202,6 +205,7 @@ class BackupService {
     ({
       List<Vehicle> vehicles,
       List<FuelTransaction> transactions,
+      List<ServiceRecord> serviceRecords,
       String exportedAt,
     })?
   >
@@ -238,6 +242,7 @@ class BackupService {
     ({
       List<Vehicle> vehicles,
       List<FuelTransaction> transactions,
+      List<ServiceRecord> serviceRecords,
       String exportedAt,
     })
   >
@@ -247,6 +252,7 @@ class BackupService {
     ({
       List<Vehicle> vehicles,
       List<FuelTransaction> transactions,
+      List<ServiceRecord> serviceRecords,
       String exportedAt,
     })
   >
@@ -272,6 +278,7 @@ class BackupService {
 
     final vehiclesList = (json['vehicles'] as List? ?? []);
     final transactionsList = (json['transactions'] as List? ?? []);
+    final serviceRecordsList = (json['serviceRecords'] as List? ?? []);
 
     final vehicles = vehiclesList
         .map((m) => Vehicle.fromMap(Map<String, dynamic>.from(m as Map)))
@@ -281,12 +288,16 @@ class BackupService {
           (m) => FuelTransaction.fromMap(Map<String, dynamic>.from(m as Map)),
         )
         .toList();
+    final serviceRecords = serviceRecordsList
+        .map((m) => ServiceRecord.fromMap(Map<String, dynamic>.from(m as Map)))
+        .toList();
 
     final exportedAt = (json['exportedAt'] as String?) ?? '';
 
     return (
       vehicles: vehicles,
       transactions: transactions,
+      serviceRecords: serviceRecords,
       exportedAt: exportedAt,
     );
   }
@@ -295,6 +306,7 @@ class BackupService {
   Future<BackupResult> applyRestore({
     required List<Vehicle> vehicles,
     required List<FuelTransaction> transactions,
+    List<ServiceRecord> serviceRecords = const [],
     required RestoreStrategy strategy,
   }) async {
     try {
@@ -303,10 +315,15 @@ class BackupService {
           await _db.replaceAllData(
             vehicles: vehicles,
             transactions: transactions,
+            serviceRecords: serviceRecords,
           );
           break;
         case RestoreStrategy.merge:
-          await _db.mergeData(vehicles: vehicles, transactions: transactions);
+          await _db.mergeData(
+            vehicles: vehicles,
+            transactions: transactions,
+            serviceRecords: serviceRecords,
+          );
           break;
       }
       return BackupResult(

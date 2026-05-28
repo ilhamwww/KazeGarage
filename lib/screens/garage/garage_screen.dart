@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../core/theme/app_colors.dart';
-import '../../core/widgets/kaze_app_bar.dart';
 import '../../providers/vehicle_provider.dart';
 import '../../providers/transaction_provider.dart';
 import '../../data/models/vehicle.dart';
@@ -56,7 +55,6 @@ class _GarageScreenState extends State<GarageScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: const KazeAppBar(),
       floatingActionButton: Consumer<VehicleProvider>(
         builder: (context, provider, _) {
           // Only show FAB if there are existing vehicles (otherwise the empty card has its own button)

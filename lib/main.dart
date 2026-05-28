@@ -14,7 +14,9 @@ import 'data/services/backup_service.dart';
 import 'providers/vehicle_provider.dart';
 import 'providers/transaction_provider.dart';
 import 'providers/fuel_price_provider.dart';
+import 'providers/service_provider.dart';
 import 'screens/main_screen.dart';
+import 'screens/splash/splash_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -38,12 +40,13 @@ class KazeGarageApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => VehicleProvider()),
         ChangeNotifierProvider(create: (_) => TransactionProvider()),
         ChangeNotifierProvider(create: (_) => FuelPriceProvider()),
+        ChangeNotifierProvider(create: (_) => ServiceProvider()),
       ],
       child: MaterialApp(
         title: 'KazeGarage',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.lightTheme,
-        home: const AppInitializer(),
+        home: const SplashScreen(nextScreen: AppInitializer()),
       ),
     );
   }
@@ -70,9 +73,11 @@ class _AppInitializerState extends State<AppInitializer> {
   Future<void> _initialize() async {
     final vehicleProvider = context.read<VehicleProvider>();
     final transactionProvider = context.read<TransactionProvider>();
+    final serviceProvider = context.read<ServiceProvider>();
     await Future.wait([
       vehicleProvider.loadVehicles(),
       transactionProvider.loadTransactions(),
+      serviceProvider.loadRecords(),
     ]);
 
     // Cek auto-restore: kalau DB kosong dan ada backup file di internal storage,
@@ -187,6 +192,7 @@ class _AppInitializerState extends State<AppInitializer> {
       final result = await service.applyRestore(
         vehicles: parsed.vehicles,
         transactions: parsed.transactions,
+        serviceRecords: parsed.serviceRecords,
         strategy: RestoreStrategy.replace,
       );
       if (!mounted) return;
@@ -194,6 +200,8 @@ class _AppInitializerState extends State<AppInitializer> {
         await context.read<VehicleProvider>().loadVehicles();
         if (!mounted) return;
         await context.read<TransactionProvider>().loadTransactions();
+        if (!mounted) return;
+        await context.read<ServiceProvider>().loadRecords();
         if (!mounted) return;
         KazeNotifier.success(
           context,

@@ -34,6 +34,8 @@ class VehicleProvider extends ChangeNotifier {
     DateTime? serviceDate,
     DateTime? taxDate,
     bool isActive = false,
+    double? serviceIntervalKm,
+    int? serviceIntervalMonths,
   }) async {
     try {
       final vehicle = Vehicle(
@@ -46,6 +48,8 @@ class VehicleProvider extends ChangeNotifier {
         serviceDate: serviceDate,
         taxDate: taxDate,
         isActive: isActive,
+        serviceIntervalKm: serviceIntervalKm,
+        serviceIntervalMonths: serviceIntervalMonths,
       );
       await _db.insertVehicle(vehicle);
       // Jika kendaraan baru aktif, non-aktifkan yang lain

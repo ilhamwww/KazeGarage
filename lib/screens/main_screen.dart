@@ -1,5 +1,7 @@
-// Main Screen - Bottom navigation 3 items: Beranda, Scan (FAB), Garasi
-// Scan FAB di tengah, sedikit terangkat (concave-style)
+// Main Screen - Bottom navigation 5 slot dengan FAB Scan di tengah:
+// [ Beranda ] [ Servis ] [ ⚡ SCAN ] [ Garasi ] [ Pengaturan ]
+//
+// Pengaturan = tap → buka BackupRestoreSheet.
 
 import 'package:flutter/material.dart';
 import '../core/theme/app_colors.dart';
@@ -7,6 +9,8 @@ import 'dashboard/dashboard_screen.dart';
 import 'garage/garage_screen.dart';
 import 'history/history_screen.dart';
 import 'scan/scan_receipt_screen.dart';
+import 'service/service_screen.dart';
+import 'settings/backup_restore_sheet.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -20,6 +24,7 @@ class _MainScreenState extends State<MainScreen> {
 
   late final List<Widget> _screens = [
     DashboardScreen(onSeeAllHistory: _openHistory),
+    const ServiceScreen(),
     const GarageScreen(),
   ];
 
@@ -37,14 +42,20 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
+  void _openSettings() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => const BackupRestoreSheet(),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _screens,
-      ),
+      body: IndexedStack(index: _currentIndex, children: _screens),
       bottomNavigationBar: _buildBottomNav(),
       floatingActionButton: GestureDetector(
         onTap: _openScan,
@@ -95,6 +106,7 @@ class _MainScreenState extends State<MainScreen> {
           height: 72,
           child: Row(
             children: [
+              // Beranda
               Expanded(
                 child: _NavItem(
                   icon: Icons.home_rounded,
@@ -103,11 +115,21 @@ class _MainScreenState extends State<MainScreen> {
                   onTap: () => setState(() => _currentIndex = 0),
                 ),
               ),
+              // Servis
               Expanded(
+                child: _NavItem(
+                  icon: Icons.build_rounded,
+                  label: 'Servis',
+                  isActive: _currentIndex == 1,
+                  onTap: () => setState(() => _currentIndex = 1),
+                ),
+              ),
+              // FAB Scan placeholder (slot tengah)
+              const Expanded(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    const SizedBox(height: 28),
+                    SizedBox(height: 28),
                     Text(
                       'Scan',
                       style: TextStyle(
@@ -116,16 +138,26 @@ class _MainScreenState extends State<MainScreen> {
                         color: AppColors.accent,
                       ),
                     ),
-                    const SizedBox(height: 12),
+                    SizedBox(height: 12),
                   ],
                 ),
               ),
+              // Garasi
               Expanded(
                 child: _NavItem(
                   icon: Icons.directions_car_rounded,
                   label: 'Garasi',
-                  isActive: _currentIndex == 1,
-                  onTap: () => setState(() => _currentIndex = 1),
+                  isActive: _currentIndex == 2,
+                  onTap: () => setState(() => _currentIndex = 2),
+                ),
+              ),
+              // Pengaturan
+              Expanded(
+                child: _NavItem(
+                  icon: Icons.settings_rounded,
+                  label: 'Pengaturan',
+                  isActive: false,
+                  onTap: _openSettings,
                 ),
               ),
             ],
@@ -158,12 +190,12 @@ class _NavItem extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, size: 24, color: color),
+          Icon(icon, size: 22, color: color),
           const SizedBox(height: 4),
           Text(
             label,
             style: TextStyle(
-              fontSize: 11,
+              fontSize: 10,
               fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
               color: color,
             ),

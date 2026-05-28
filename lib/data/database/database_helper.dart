@@ -5,6 +5,7 @@ import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../models/vehicle.dart';
 import '../models/fuel_transaction.dart';
+import '../models/service_record.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper _instance = DatabaseHelper._internal();
@@ -25,7 +26,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 3,
+      version: 4,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -44,6 +45,8 @@ class DatabaseHelper {
         service_date TEXT,
         tax_date TEXT,
         is_active INTEGER NOT NULL DEFAULT 0,
+        service_interval_km REAL,
+        service_interval_months INTEGER,
         created_at TEXT NOT NULL
       )
     ''');
@@ -65,6 +68,24 @@ class DatabaseHelper {
         FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE
       )
     ''');
+
+    // Tabel service_records
+    await db.execute('''
+      CREATE TABLE service_records (
+        id TEXT PRIMARY KEY,
+        vehicle_id TEXT NOT NULL,
+        date TEXT NOT NULL,
+        service_type TEXT NOT NULL,
+        odometer REAL NOT NULL,
+        cost REAL,
+        location TEXT,
+        notes TEXT,
+        next_due_date TEXT,
+        next_due_odometer REAL,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE
+      )
+    ''');
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -80,6 +101,32 @@ class DatabaseHelper {
       await db.execute(
         'ALTER TABLE vehicles ADD COLUMN is_active INTEGER NOT NULL DEFAULT 0',
       );
+    }
+    if (oldVersion < 4) {
+      // Tambah kolom interval servis di vehicles
+      await db.execute(
+        'ALTER TABLE vehicles ADD COLUMN service_interval_km REAL',
+      );
+      await db.execute(
+        'ALTER TABLE vehicles ADD COLUMN service_interval_months INTEGER',
+      );
+      // Tabel service_records baru
+      await db.execute('''
+        CREATE TABLE service_records (
+          id TEXT PRIMARY KEY,
+          vehicle_id TEXT NOT NULL,
+          date TEXT NOT NULL,
+          service_type TEXT NOT NULL,
+          odometer REAL NOT NULL,
+          cost REAL,
+          location TEXT,
+          notes TEXT,
+          next_due_date TEXT,
+          next_due_odometer REAL,
+          created_at TEXT NOT NULL,
+          FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE
+        )
+      ''');
     }
   }
 
@@ -278,6 +325,51 @@ class DatabaseHelper {
     ''');
   }
 
+  // ==================== SERVICE RECORD OPERATIONS ====================
+
+  Future<int> insertServiceRecord(ServiceRecord record) async {
+    final db = await database;
+    return await db.insert(
+      'service_records',
+      record.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<int> updateServiceRecord(ServiceRecord record) async {
+    final db = await database;
+    return await db.update(
+      'service_records',
+      record.toMap(),
+      where: 'id = ?',
+      whereArgs: [record.id],
+    );
+  }
+
+  Future<int> deleteServiceRecord(String id) async {
+    final db = await database;
+    return await db.delete('service_records', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<List<ServiceRecord>> getAllServiceRecords() async {
+    final db = await database;
+    final maps = await db.query('service_records', orderBy: 'date DESC');
+    return maps.map((m) => ServiceRecord.fromMap(m)).toList();
+  }
+
+  Future<List<ServiceRecord>> getServiceRecordsByVehicle(
+    String vehicleId,
+  ) async {
+    final db = await database;
+    final maps = await db.query(
+      'service_records',
+      where: 'vehicle_id = ?',
+      whereArgs: [vehicleId],
+      orderBy: 'date DESC',
+    );
+    return maps.map((m) => ServiceRecord.fromMap(m)).toList();
+  }
+
   // ==================== BACKUP / RESTORE ====================
 
   /// Hapus semua data dan ganti dengan data dari backup.
@@ -286,10 +378,12 @@ class DatabaseHelper {
   Future<void> replaceAllData({
     required List<Vehicle> vehicles,
     required List<FuelTransaction> transactions,
+    List<ServiceRecord> serviceRecords = const [],
   }) async {
     final db = await database;
     await db.transaction((txn) async {
       // Bersihkan tabel dulu (urutan: child → parent untuk FK)
+      await txn.delete('service_records');
       await txn.delete('fuel_transactions');
       await txn.delete('vehicles');
 
@@ -308,6 +402,13 @@ class DatabaseHelper {
           conflictAlgorithm: ConflictAlgorithm.replace,
         );
       }
+      for (final s in serviceRecords) {
+        await txn.insert(
+          'service_records',
+          s.toMap(),
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
     });
   }
 
@@ -316,6 +417,7 @@ class DatabaseHelper {
   Future<void> mergeData({
     required List<Vehicle> vehicles,
     required List<FuelTransaction> transactions,
+    List<ServiceRecord> serviceRecords = const [],
   }) async {
     final db = await database;
     await db.transaction((txn) async {
@@ -330,6 +432,13 @@ class DatabaseHelper {
         await txn.insert(
           'fuel_transactions',
           t.toMap(),
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+      for (final s in serviceRecords) {
+        await txn.insert(
+          'service_records',
+          s.toMap(),
           conflictAlgorithm: ConflictAlgorithm.replace,
         );
       }

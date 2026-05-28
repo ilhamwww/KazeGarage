@@ -11,6 +11,10 @@ class Vehicle {
   final DateTime? serviceDate; // Jadwal servis berikutnya
   final DateTime? taxDate; // Tanggal pajak
   final bool isActive; // Kendaraan utama yang sedang dipakai
+  // Interval servis berkala (oli mesin, dll) — user-defined per kendaraan
+  // Dipakai oleh ServiceScreen untuk auto-suggest reminder berikutnya.
+  final double? serviceIntervalKm; // Contoh: 5000 km
+  final int? serviceIntervalMonths; // Contoh: 6 bulan
   final DateTime createdAt;
 
   Vehicle({
@@ -23,6 +27,8 @@ class Vehicle {
     this.serviceDate,
     this.taxDate,
     this.isActive = false,
+    this.serviceIntervalKm,
+    this.serviceIntervalMonths,
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
 
@@ -35,9 +41,17 @@ class Vehicle {
       tankCapacity: (map['tank_capacity'] as num).toDouble(),
       imageUrl: map['image_url'] as String?,
       vehicleType: map['vehicle_type'] as String?,
-      serviceDate: map['service_date'] != null ? DateTime.parse(map['service_date'] as String) : null,
-      taxDate: map['tax_date'] != null ? DateTime.parse(map['tax_date'] as String) : null,
+      serviceDate: map['service_date'] != null
+          ? DateTime.parse(map['service_date'] as String)
+          : null,
+      taxDate: map['tax_date'] != null
+          ? DateTime.parse(map['tax_date'] as String)
+          : null,
       isActive: (map['is_active'] as int? ?? 0) == 1,
+      serviceIntervalKm: map['service_interval_km'] != null
+          ? (map['service_interval_km'] as num).toDouble()
+          : null,
+      serviceIntervalMonths: map['service_interval_months'] as int?,
       createdAt: DateTime.parse(map['created_at'] as String),
     );
   }
@@ -54,6 +68,8 @@ class Vehicle {
       'service_date': serviceDate?.toIso8601String(),
       'tax_date': taxDate?.toIso8601String(),
       'is_active': isActive ? 1 : 0,
+      'service_interval_km': serviceIntervalKm,
+      'service_interval_months': serviceIntervalMonths,
       'created_at': createdAt.toIso8601String(),
     };
   }
@@ -69,6 +85,8 @@ class Vehicle {
     DateTime? serviceDate,
     DateTime? taxDate,
     bool? isActive,
+    double? serviceIntervalKm,
+    int? serviceIntervalMonths,
     DateTime? createdAt,
   }) {
     return Vehicle(
@@ -81,6 +99,9 @@ class Vehicle {
       serviceDate: serviceDate ?? this.serviceDate,
       taxDate: taxDate ?? this.taxDate,
       isActive: isActive ?? this.isActive,
+      serviceIntervalKm: serviceIntervalKm ?? this.serviceIntervalKm,
+      serviceIntervalMonths:
+          serviceIntervalMonths ?? this.serviceIntervalMonths,
       createdAt: createdAt ?? this.createdAt,
     );
   }
