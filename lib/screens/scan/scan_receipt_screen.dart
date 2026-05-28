@@ -12,6 +12,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/widgets/kaze_app_bar.dart';
 import '../../core/widgets/kaze_notifier.dart';
 import '../../data/models/vehicle.dart';
+import '../../data/services/receipt_parser.dart';
 import '../../providers/vehicle_provider.dart';
 import '../../providers/transaction_provider.dart';
 import '../transaction/add_transaction_screen.dart';
@@ -146,201 +147,19 @@ class _ScanReceiptScreenState extends State<ScanReceiptScreen> {
     }
   }
 
-  double? _parseIndonesianNumber(String raw) {
-    final s = raw.trim();
-    if (s.isEmpty) return null;
-    final hasComma = s.contains(',');
-    final hasDot = s.contains('.');
-    if (hasComma && hasDot) {
-      final lastComma = s.lastIndexOf(',');
-      final lastDot = s.lastIndexOf('.');
-      if (lastComma > lastDot) {
-        return double.tryParse(s.replaceAll('.', '').replaceAll(',', '.'));
-      } else {
-        return double.tryParse(s.replaceAll(',', ''));
-      }
-    } else if (hasComma) {
-      final parts = s.split(',');
-      if (parts.length == 2 && parts[1].length <= 2) {
-        return double.tryParse(s.replaceAll(',', '.'));
-      } else {
-        return double.tryParse(s.replaceAll(',', ''));
-      }
-    } else if (hasDot) {
-      final parts = s.split('.');
-      if (parts.length == 2 && parts[1].length <= 2) {
-        return double.tryParse(s);
-      } else {
-        return double.tryParse(s.replaceAll('.', ''));
-      }
-    }
-    return double.tryParse(s);
-  }
-
   void _extractReceiptData(String ocrText) {
-    final text = ocrText.toUpperCase();
-    final lines = ocrText
-        .split('\n')
-        .map((l) => l.trim())
-        .where((l) => l.isNotEmpty)
-        .toList();
-
-    double? liters;
-    double? pricePerLiter;
-    double? total;
-    String? fuelType;
-    String? spbuName;
-    String? spbuCode;
-
-    // Detect SPBU name (Pertamina/Shell/BP/Vivo)
-    for (final line in lines) {
-      final upper = line.toUpperCase();
-      if (upper.contains('PERTAMINA')) {
-        spbuName = 'SPBU PERTAMINA';
-        break;
-      }
-      if (upper.contains('SHELL')) {
-        spbuName = 'SHELL';
-        break;
-      }
-      if (upper.contains('VIVO')) {
-        spbuName = 'VIVO';
-        break;
-      }
-      if (upper.contains('BP ')) {
-        spbuName = 'BP';
-        break;
-      }
-    }
-    spbuName ??= 'SPBU';
-
-    // SPBU code: pattern XX.XXXXX (e.g., 34.12301)
-    final codeMatch = RegExp(r'\b(\d{2}\.\d{4,5})\b').firstMatch(ocrText);
-    if (codeMatch != null) {
-      spbuCode = codeMatch.group(1);
-    }
-
-    // Fuel type
-    final fuelTypes = [
-      'PERTAMAX TURBO',
-      'PERTAMAX',
-      'PERTALITE',
-      'DEXLITE',
-      'BIO SOLAR',
-      'SOLAR',
-      'DEX',
-      'PREMIUM',
-      'V-POWER',
-      'SUPER',
-    ];
-    for (final ft in fuelTypes) {
-      if (text.contains(ft)) {
-        fuelType = _capitalize(ft);
-        break;
-      }
-    }
-
-    // Volume / liters
-    final literPatterns = [
-      RegExp(
-        r'[Vv]olume\s*[:=]\s*\(?\s*[Ll]\s*\)?\s*(\d+[.,]\d+)',
-        caseSensitive: false,
-      ),
-      RegExp(r'[Vv]olume\s*[:=]\s*(\d+[.,]\d+)', caseSensitive: false),
-      RegExp(r'[Vv]olume\s+(\d+[.,]\d+)', caseSensitive: false),
-      RegExp(r'\(?[Ll]\)?\s*(\d+[.,]\d+)', caseSensitive: false),
-      RegExp(
-        r'(?:^|\s)(?:L|Liter|LT)\s*[:=]\s*(\d+[.,]\d+)',
-        caseSensitive: false,
-      ),
-      RegExp(r'(\d+[.,]\d{1,2})\s*(?:L|LTR|Liter|LT)\b', caseSensitive: false),
-    ];
-    for (final p in literPatterns) {
-      final m = p.firstMatch(ocrText);
-      if (m != null) {
-        liters = _parseIndonesianNumber(m.group(1)!);
-        if (liters != null && liters > 0 && liters < 500) break;
-        liters = null;
-      }
-    }
-
-    // Price/liter
-    final pricePatterns = [
-      RegExp(
-        r'[Hh]arga\s*/\s*[Ll]iter\s*[:=]?\s*[Rr][Pp]\.?\s*(\d[.,\d]+)',
-        caseSensitive: false,
-      ),
-      RegExp(
-        r'[Hh]arga\s*/\s*[Ll]iter\s*[:=]\s*(\d[.,\d]+)',
-        caseSensitive: false,
-      ),
-      RegExp(
-        r'[Hh]arga\s*[:=]\s*[Rr][Pp]\.?\s*(\d[.,\d]+)',
-        caseSensitive: false,
-      ),
-      RegExp(r'[Rr][Pp]\.?\s*(\d[.,\d]+)\s*/\s*[Ll]', caseSensitive: false),
-      RegExp(r'(\d[.,\d]+)\s*/\s*(?:L|Liter|LTR)', caseSensitive: false),
-    ];
-    for (final p in pricePatterns) {
-      final m = p.firstMatch(ocrText);
-      if (m != null) {
-        pricePerLiter = _parseIndonesianNumber(m.group(1)!);
-        if (pricePerLiter != null &&
-            pricePerLiter >= 1000 &&
-            pricePerLiter <= 50000) {
-          break;
-        }
-        pricePerLiter = null;
-      }
-    }
-
-    // Total
-    final totalPatterns = [
-      RegExp(
-        r'[Tt]otal\s*[Hh]arga\s*[:=]?\s*[Rr][Pp]\.?\s*(\d[.,\d]+)',
-        caseSensitive: false,
-      ),
-      RegExp(
-        r'[Tt]otal\s*[:=]\s*[Rr][Pp]\.?\s*(\d[.,\d]+)',
-        caseSensitive: false,
-      ),
-      RegExp(
-        r'(?:TOTAL|JUMLAH|TAGIHAN)\s*[:=]?\s*(?:RP\.?\s*)?(\d[.,\d]+)',
-        caseSensitive: false,
-      ),
-    ];
-    for (final p in totalPatterns) {
-      final m = p.firstMatch(ocrText);
-      if (m != null) {
-        total = _parseIndonesianNumber(m.group(1)!);
-        if (total != null && total > 1000) break;
-        total = null;
-      }
-    }
-
-    // Fallback: derive total from liters * price
-    if (liters != null && pricePerLiter != null) {
-      total = liters * pricePerLiter;
-    }
-
+    final data = ReceiptParser.parse(ocrText);
     setState(() {
-      _extractedLiters = liters;
-      _extractedPricePerLiter = pricePerLiter;
-      _extractedTotal = total;
-      _extractedFuelType = fuelType;
-      _spbuName = spbuName;
-      _spbuCode = spbuCode;
+      _extractedLiters = data.liters;
+      _extractedPricePerLiter = data.pricePerLiter;
+      _extractedTotal = data.total;
+      _extractedFuelType = data.fuelType;
+      _spbuName = data.spbuName;
+      _spbuCode = data.spbuCode;
+      if (data.date != null) {
+        _selectedDate = data.date!;
+      }
     });
-  }
-
-  String _capitalize(String s) {
-    return s
-        .split(' ')
-        .map((w) {
-          if (w.isEmpty) return w;
-          return w[0] + w.substring(1).toLowerCase();
-        })
-        .join(' ');
   }
 
   String _formatCurrency(double amount) {

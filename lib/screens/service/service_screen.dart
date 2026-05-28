@@ -384,10 +384,7 @@ class _ServiceCard extends StatelessWidget {
       kmLabel = '@${record.nextDueOdometer!.toStringAsFixed(0)} km';
     }
 
-    final parts = [
-      if (dateLabel != null) dateLabel,
-      if (kmLabel != null) kmLabel,
-    ];
+    final parts = [?dateLabel, ?kmLabel];
     return (label: parts.join(' • '), color: color, icon: icon);
   }
 
