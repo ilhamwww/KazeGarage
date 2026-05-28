@@ -83,6 +83,71 @@ class _BackupRestoreSheetState extends State<BackupRestoreSheet> {
     await _service.shareBackupFile(file.path);
   }
 
+  Future<void> _handleDelete(File file) async {
+    final fileName = file.uri.pathSegments.last;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Text(
+            'Hapus Backup?',
+            style: TextStyle(fontWeight: FontWeight.w800),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                fileName,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontFamily: 'monospace',
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'File backup akan dihapus permanen dari penyimpanan. Aksi ini tidak bisa dibatalkan.',
+                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              ),
+            ],
+          ),
+          actionsPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Batal'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Hapus'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _isWorking = true);
+    final result = await _service.deleteBackupFile(file);
+    if (!mounted) return;
+    setState(() => _isWorking = false);
+
+    if (!result.success) {
+      KazeNotifier.error(context, result.message ?? 'Gagal menghapus file');
+      return;
+    }
+
+    KazeNotifier.success(context, 'Backup dihapus');
+    await _loadSavedBackups();
+  }
+
   Future<void> _handleImportFromPicker() async {
     try {
       setState(() => _isWorking = true);
@@ -541,6 +606,7 @@ class _BackupRestoreSheetState extends State<BackupRestoreSheet> {
                       disabled: _isWorking,
                       onRestore: () => _handleRestoreFromSaved(f),
                       onShare: () => _handleShare(f),
+                      onDelete: () => _handleDelete(f),
                     ),
                   ),
                 ),
@@ -681,12 +747,14 @@ class _SavedBackupTile extends StatelessWidget {
   final bool disabled;
   final VoidCallback onRestore;
   final VoidCallback onShare;
+  final VoidCallback onDelete;
 
   const _SavedBackupTile({
     required this.file,
     required this.disabled,
     required this.onRestore,
     required this.onShare,
+    required this.onDelete,
   });
 
   String _formatSize(int bytes) {
@@ -764,6 +832,17 @@ class _SavedBackupTile extends StatelessWidget {
                 color: AppColors.textSecondary,
               ),
               onPressed: disabled ? null : onShare,
+              visualDensity: VisualDensity.compact,
+            ),
+            // Delete button
+            IconButton(
+              tooltip: 'Hapus',
+              icon: const Icon(
+                Icons.delete_outline_rounded,
+                size: 20,
+                color: AppColors.error,
+              ),
+              onPressed: disabled ? null : onDelete,
               visualDensity: VisualDensity.compact,
             ),
             // Restore button

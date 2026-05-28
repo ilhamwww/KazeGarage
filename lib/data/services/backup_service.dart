@@ -174,6 +174,34 @@ class BackupService {
     );
   }
 
+  /// Hapus file backup tersimpan. Hanya menghapus file dengan ekstensi
+  /// .kazegarage di folder backup yang dikelola aplikasi (sebagai pengaman
+  /// agar tidak salah menghapus file lain).
+  Future<BackupResult> deleteBackupFile(File file) async {
+    try {
+      if (!await file.exists()) {
+        return const BackupResult(
+          success: false,
+          message: 'File sudah tidak ada',
+        );
+      }
+
+      final lowerPath = file.path.toLowerCase();
+      if (!lowerPath.endsWith('.$_fileExtension')) {
+        return const BackupResult(
+          success: false,
+          message: 'Hanya file backup KazeGarage yang bisa dihapus',
+        );
+      }
+
+      await file.delete();
+      return const BackupResult(success: true, message: 'File backup dihapus');
+    } catch (e) {
+      debugPrint('Delete backup error: $e');
+      return BackupResult(success: false, message: 'Gagal menghapus file: $e');
+    }
+  }
+
   /// Daftar semua file backup yang tersimpan di internal storage.
   /// Diurutkan dari terbaru ke terlama berdasarkan modified time.
   Future<List<File>> listBackupFiles() async {
