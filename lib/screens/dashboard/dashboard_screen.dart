@@ -13,6 +13,8 @@ import '../../providers/transaction_provider.dart';
 import '../../providers/fuel_price_provider.dart';
 import '../../data/models/fuel_transaction.dart';
 import '../../data/models/fuel_price.dart';
+import '../../data/models/vehicle.dart';
+import '../../data/services/fuel_prediction_service.dart';
 import '../history/history_screen.dart';
 import '../history/transaction_detail_sheet.dart';
 
@@ -80,6 +82,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildHeroCard(),
+              const SizedBox(height: 24),
+              _buildSectionTitle('Prediksi Pengisian Berikutnya'),
+              const SizedBox(height: 12),
+              _buildPredictionSection(),
               const SizedBox(height: 24),
               _buildSectionTitle('Statistik Harga'),
               const SizedBox(height: 12),
@@ -265,6 +271,61 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if (key == prevKey) previous = total;
     }
     return [current, previous];
+  }
+
+  // ====== PREDICTION SECTION ======
+  Widget _buildPredictionSection() {
+    return Consumer2<TransactionProvider, VehicleProvider>(
+      builder: (context, txProvider, vehicleProvider, _) {
+        final vehicles = vehicleProvider.vehicles;
+
+        if (vehicles.isEmpty) {
+          return _PredictionEmptyState(
+            icon: Icons.directions_car_outlined,
+            message:
+                'Tambahkan kendaraan terlebih dahulu untuk melihat prediksi pengisian',
+          );
+        }
+
+        // Hitung prediksi per kendaraan, hanya yang punya >= 2 transaksi
+        final cards = <Widget>[];
+        // Prioritaskan kendaraan aktif di urutan pertama
+        final orderedVehicles = [
+          ...vehicles.where((v) => v.isActive),
+          ...vehicles.where((v) => !v.isActive),
+        ];
+
+        for (final v in orderedVehicles) {
+          final vehicleTx = txProvider.transactions
+              .where((t) => t.vehicleId == v.id)
+              .toList();
+          final result = FuelPredictionService.predict(vehicleTx, vehicle: v);
+          cards.add(_PredictionCard(vehicle: v, result: result));
+        }
+
+        if (cards.isEmpty) {
+          return _PredictionEmptyState(
+            icon: Icons.insights_outlined,
+            message: 'Catat minimal 2 pengisian untuk mulai melihat prediksi',
+          );
+        }
+
+        // Single card → full width. Multiple → horizontal scroll.
+        if (cards.length == 1) {
+          return cards.first;
+        }
+        return SizedBox(
+          height: 178,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            itemCount: cards.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 12),
+            itemBuilder: (_, i) => SizedBox(width: 280, child: cards[i]),
+          ),
+        );
+      },
+    );
   }
 
   // ====== PRICE STATS ======
@@ -1245,6 +1306,321 @@ class _StatChip extends StatelessWidget {
               fontWeight: FontWeight.w800,
               color: AppColors.textPrimary,
               letterSpacing: -0.3,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ====== PREDICTION CARD ======
+class _PredictionCard extends StatelessWidget {
+  final Vehicle vehicle;
+  final FuelPredictionResult result;
+
+  const _PredictionCard({required this.vehicle, required this.result});
+
+  Color _statusColor() {
+    switch (result.status) {
+      case PredictionStatus.upcoming:
+        return AppColors.success;
+      case PredictionStatus.soon:
+        return AppColors.warning;
+      case PredictionStatus.overdue:
+        return AppColors.accent;
+      case PredictionStatus.insufficientData:
+        return AppColors.textHint;
+    }
+  }
+
+  String _statusLabel() {
+    switch (result.status) {
+      case PredictionStatus.upcoming:
+        return 'Masih Lama';
+      case PredictionStatus.soon:
+        return 'Segera';
+      case PredictionStatus.overdue:
+        return 'Terlambat';
+      case PredictionStatus.insufficientData:
+        return '—';
+    }
+  }
+
+  String _daysText() {
+    final days = result.daysRemaining;
+    if (days == null) return '—';
+    if (days < 0) return '${days.abs()} hari terlambat';
+    if (days == 0) return 'Hari ini';
+    if (days == 1) return '~1 hari lagi';
+    return '~$days hari lagi';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final statusColor = _statusColor();
+    final isInsufficient = result.status == PredictionStatus.insufficientData;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.divider),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header: vehicle name + status badge
+          Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  Icons.event_available_outlined,
+                  size: 16,
+                  color: statusColor,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      vehicle.name,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      vehicle.licensePlate,
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textSecondary,
+                        letterSpacing: 0.4,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (!isInsufficient)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: statusColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    _statusLabel(),
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      color: statusColor,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          // Predicted date or empty state
+          if (isInsufficient)
+            _buildInsufficient()
+          else
+            _buildPrediction(statusColor),
+          const SizedBox(height: 10),
+          // Reason / disclaimer + confidence
+          if (result.reason != null)
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: Text(
+                    result.reason!,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textSecondary,
+                      height: 1.3,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (!isInsufficient) ...[
+                  const SizedBox(width: 8),
+                  _buildConfidenceDots(result.confidence),
+                ],
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPrediction(Color statusColor) {
+    final date = result.predictedDate!;
+    final formatter = DateFormat('d MMM yyyy', 'id_ID');
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                formatter.format(date),
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.textPrimary,
+                  letterSpacing: -0.5,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                _daysText(),
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: statusColor,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildInsufficient() {
+    return Row(
+      children: [
+        const Icon(Icons.info_outline, size: 16, color: AppColors.textHint),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            'Belum cukup data untuk prediksi',
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildConfidenceDots(double confidence) {
+    // Map 0..1 → 1..4 dots
+    int filled;
+    if (confidence >= 0.75) {
+      filled = 4;
+    } else if (confidence >= 0.5) {
+      filled = 3;
+    } else if (confidence >= 0.25) {
+      filled = 2;
+    } else {
+      filled = 1;
+    }
+
+    Color dotColor;
+    String label;
+    if (filled >= 4) {
+      dotColor = AppColors.success;
+      label = 'Tinggi';
+    } else if (filled >= 3) {
+      dotColor = AppColors.primary;
+      label = 'Sedang';
+    } else if (filled >= 2) {
+      dotColor = AppColors.warning;
+      label = 'Cukup';
+    } else {
+      dotColor = AppColors.textHint;
+      label = 'Rendah';
+    }
+
+    return Tooltip(
+      message: 'Akurasi prediksi: $label',
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: List.generate(4, (i) {
+          final isOn = i < filled;
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 1),
+            child: Container(
+              width: 6,
+              height: 6,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: isOn ? dotColor : AppColors.divider,
+              ),
+            ),
+          );
+        }),
+      ),
+    );
+  }
+}
+
+// ====== PREDICTION EMPTY STATE ======
+class _PredictionEmptyState extends StatelessWidget {
+  final IconData icon;
+  final String message;
+
+  const _PredictionEmptyState({required this.icon, required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.divider),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: AppColors.surfaceMuted,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, size: 20, color: AppColors.textHint),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.textSecondary,
+                height: 1.4,
+              ),
             ),
           ),
         ],
