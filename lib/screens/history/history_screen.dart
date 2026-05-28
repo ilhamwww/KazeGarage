@@ -99,135 +99,138 @@ class _HistoryScreenState extends State<HistoryScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: Consumer2<TransactionProvider, VehicleProvider>(
-        builder: (context, provider, vehicleProvider, _) {
-          final filtered = _applyFilters(
-            provider.transactions,
-            vehicleProvider,
-          );
-          return Column(
-            children: [
-              // Search & filters
-              Container(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
-                color: AppColors.surface,
-                child: Column(
-                  children: [
-                    // Search bar
-                    Container(
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceMuted,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: TextField(
-                        controller: _searchController,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: AppColors.textPrimary,
+      body: SafeArea(
+        bottom: false,
+        child: Consumer2<TransactionProvider, VehicleProvider>(
+          builder: (context, provider, vehicleProvider, _) {
+            final filtered = _applyFilters(
+              provider.transactions,
+              vehicleProvider,
+            );
+            return Column(
+              children: [
+                // Search & filters
+                Container(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+                  color: AppColors.surface,
+                  child: Column(
+                    children: [
+                      // Search bar
+                      Container(
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceMuted,
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                        onChanged: (v) => setState(() => _searchQuery = v),
-                        decoration: InputDecoration(
-                          hintText: 'Search transactions...',
-                          hintStyle: const TextStyle(
-                            fontSize: 13,
-                            color: AppColors.textHint,
+                        child: TextField(
+                          controller: _searchController,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: AppColors.textPrimary,
                           ),
-                          prefixIcon: const Icon(
-                            Icons.search,
-                            size: 20,
-                            color: AppColors.textSecondary,
+                          onChanged: (v) => setState(() => _searchQuery = v),
+                          decoration: InputDecoration(
+                            hintText: 'Search transactions...',
+                            hintStyle: const TextStyle(
+                              fontSize: 13,
+                              color: AppColors.textHint,
+                            ),
+                            prefixIcon: const Icon(
+                              Icons.search,
+                              size: 20,
+                              color: AppColors.textSecondary,
+                            ),
+                            suffixIcon: _searchQuery.isNotEmpty
+                                ? IconButton(
+                                    icon: const Icon(
+                                      Icons.clear,
+                                      size: 18,
+                                      color: AppColors.textSecondary,
+                                    ),
+                                    onPressed: () {
+                                      setState(() {
+                                        _searchController.clear();
+                                        _searchQuery = '';
+                                      });
+                                    },
+                                  )
+                                : null,
+                            border: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            contentPadding: const EdgeInsets.symmetric(
+                              vertical: 14,
+                            ),
+                            isDense: true,
                           ),
-                          suffixIcon: _searchQuery.isNotEmpty
-                              ? IconButton(
-                                  icon: const Icon(
-                                    Icons.clear,
-                                    size: 18,
-                                    color: AppColors.textSecondary,
-                                  ),
-                                  onPressed: () {
-                                    setState(() {
-                                      _searchController.clear();
-                                      _searchQuery = '';
-                                    });
-                                  },
-                                )
-                              : null,
-                          border: InputBorder.none,
-                          enabledBorder: InputBorder.none,
-                          focusedBorder: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(
-                            vertical: 14,
-                          ),
-                          isDense: true,
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 14),
-                    // Filter chips
-                    SizedBox(
-                      height: 32,
-                      child: ListView.separated(
-                        scrollDirection: Axis.horizontal,
-                        physics: const BouncingScrollPhysics(),
-                        itemCount: _fuelFilters.length,
-                        separatorBuilder: (_, _) => const SizedBox(width: 8),
-                        itemBuilder: (_, i) {
-                          final f = _fuelFilters[i];
-                          final selected = _selectedFuelFilter == f;
-                          return GestureDetector(
-                            onTap: () =>
-                                setState(() => _selectedFuelFilter = f),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                color: selected
-                                    ? AppColors.primary
-                                    : AppColors.surfaceMuted,
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Center(
-                                child: Text(
-                                  f,
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: selected
-                                        ? Colors.white
-                                        : AppColors.textSecondary,
+                      const SizedBox(height: 14),
+                      // Filter chips
+                      SizedBox(
+                        height: 32,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          physics: const BouncingScrollPhysics(),
+                          itemCount: _fuelFilters.length,
+                          separatorBuilder: (_, _) => const SizedBox(width: 8),
+                          itemBuilder: (_, i) {
+                            final f = _fuelFilters[i];
+                            final selected = _selectedFuelFilter == f;
+                            return GestureDetector(
+                              onTap: () =>
+                                  setState(() => _selectedFuelFilter = f),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: selected
+                                      ? AppColors.primary
+                                      : AppColors.surfaceMuted,
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    f,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: selected
+                                          ? Colors.white
+                                          : AppColors.textSecondary,
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // Transaction list grouped by month
-              Expanded(
-                child: provider.isLoading
-                    ? const Center(
-                        child: CircularProgressIndicator(
-                          color: AppColors.accent,
+                            );
+                          },
                         ),
-                      )
-                    : filtered.isEmpty
-                    ? _buildEmptyState()
-                    : RefreshIndicator(
-                        color: AppColors.accent,
-                        onRefresh: _loadData,
-                        child: _buildGroupedList(filtered, vehicleProvider),
                       ),
-              ),
-            ],
-          );
-        },
+                    ],
+                  ),
+                ),
+
+                // Transaction list grouped by month
+                Expanded(
+                  child: provider.isLoading
+                      ? const Center(
+                          child: CircularProgressIndicator(
+                            color: AppColors.accent,
+                          ),
+                        )
+                      : filtered.isEmpty
+                      ? _buildEmptyState()
+                      : RefreshIndicator(
+                          color: AppColors.accent,
+                          onRefresh: _loadData,
+                          child: _buildGroupedList(filtered, vehicleProvider),
+                        ),
+                ),
+              ],
+            );
+          },
+        ),
       ),
     );
   }

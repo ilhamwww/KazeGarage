@@ -55,72 +55,115 @@ class _GarageScreenState extends State<GarageScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      floatingActionButton: Consumer<VehicleProvider>(
-        builder: (context, provider, _) {
-          // Only show FAB if there are existing vehicles (otherwise the empty card has its own button)
-          if (provider.vehicles.isEmpty) return const SizedBox.shrink();
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 80),
-            child: FloatingActionButton(
-              heroTag: 'garage_add_fab',
-              onPressed: _showAddVehicle,
-              backgroundColor: AppColors.accent,
-              child: const Icon(Icons.add, color: Colors.white),
-            ),
-          );
-        },
-      ),
-      body: Consumer2<VehicleProvider, TransactionProvider>(
-        builder: (context, vehicleProvider, transactionProvider, _) {
-          if (vehicleProvider.isLoading) {
-            return const Center(
-              child: CircularProgressIndicator(color: AppColors.accent),
-            );
-          }
-          return RefreshIndicator(
-            color: AppColors.accent,
-            onRefresh: _loadData,
-            child: ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 120),
+      body: SafeArea(
+        bottom: false,
+        child: Consumer2<VehicleProvider, TransactionProvider>(
+          builder: (context, vehicleProvider, transactionProvider, _) {
+            if (vehicleProvider.isLoading) {
+              return const Center(
+                child: CircularProgressIndicator(color: AppColors.accent),
+              );
+            }
+            return Column(
               children: [
-                // Section header
-                const Text(
-                  'Garasi Saya',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.textPrimary,
-                    letterSpacing: -0.4,
+                // Header dengan tombol Tambah di kanan (sama pattern dengan Service screen)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+                  child: Row(
+                    children: [
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Garasi Saya',
+                              style: TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.textPrimary,
+                                letterSpacing: -0.4,
+                              ),
+                            ),
+                            SizedBox(height: 2),
+                            Text(
+                              'Kelola armada kendaraan Anda',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Tombol Tambah (hanya tampil kalau sudah ada kendaraan)
+                      if (vehicleProvider.vehicles.isNotEmpty)
+                        Material(
+                          color: AppColors.accent,
+                          borderRadius: BorderRadius.circular(12),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(12),
+                            onTap: _showAddVehicle,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 10,
+                              ),
+                              child: const Row(
+                                children: [
+                                  Icon(
+                                    Icons.add,
+                                    color: Colors.white,
+                                    size: 18,
+                                  ),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'Tambah',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 4),
-                const Text(
-                  'Kelola armada kendaraan Anda',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-                const SizedBox(height: 20),
 
-                // Vehicle list
-                ...vehicleProvider.vehicles.map(
-                  (v) => _VehicleCard(
-                    vehicle: v,
-                    onTap: () => _showVehicleDetail(v),
-                    onSetActive: () async {
-                      await vehicleProvider.setActiveVehicle(v.id);
-                    },
+                // List
+                Expanded(
+                  child: RefreshIndicator(
+                    color: AppColors.accent,
+                    onRefresh: _loadData,
+                    child: ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 120),
+                      children: [
+                        // Vehicle list
+                        ...vehicleProvider.vehicles.map(
+                          (v) => _VehicleCard(
+                            vehicle: v,
+                            onTap: () => _showVehicleDetail(v),
+                            onSetActive: () async {
+                              await vehicleProvider.setActiveVehicle(v.id);
+                            },
+                          ),
+                        ),
+
+                        // Empty card hanya kalau belum ada kendaraan (CTA besar)
+                        if (vehicleProvider.vehicles.isEmpty)
+                          _buildAddVehicleCard(),
+                      ],
+                    ),
                   ),
                 ),
-
-                // Add vehicle empty card
-                _buildAddVehicleCard(),
               ],
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }
