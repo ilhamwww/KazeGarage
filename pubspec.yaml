@@ -49,6 +49,9 @@ dependencies:
   # Membaca versi aplikasi (untuk splash screen)
   package_info_plus: ^8.1.2
 
+  # Membuka URL eksternal (download update dari GitHub Release)
+  url_launcher: ^6.3.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

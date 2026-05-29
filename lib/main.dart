@@ -10,7 +10,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'core/theme/app_colors.dart';
 import 'core/theme/app_theme.dart';
 import 'core/widgets/kaze_notifier.dart';
+import 'core/widgets/update_dialog.dart';
 import 'data/services/backup_service.dart';
+import 'data/services/update_service.dart';
 import 'providers/vehicle_provider.dart';
 import 'providers/transaction_provider.dart';
 import 'providers/fuel_price_provider.dart';
@@ -91,6 +93,42 @@ class _AppInitializerState extends State<AppInitializer> {
     if (mounted) {
       setState(() => _isInitialized = true);
     }
+
+    // Setelah UI siap, cek versi terbaru di GitHub (silent kalau offline).
+    if (mounted) {
+      await _maybeCheckForUpdate();
+    }
+  }
+
+  // Key untuk menyimpan versi yang sudah pernah ditolak user lewat "Nanti Saja".
+  // Popup tidak akan muncul lagi untuk versi yang sama, tapi tetap muncul
+  // kalau ada versi yang lebih baru lagi.
+  static const String _dismissedUpdateVersionKey = 'update_dismissed_version';
+
+  Future<void> _maybeCheckForUpdate() async {
+    final updateInfo = await UpdateService().checkForUpdate();
+    // Null = sudah terbaru, offline, atau gagal → tidak melakukan apa-apa.
+    if (updateInfo == null || !mounted) return;
+
+    // Cek apakah user sudah menolak versi ini sebelumnya.
+    final prefs = await SharedPreferences.getInstance();
+    final dismissedVersion = prefs.getString(_dismissedUpdateVersionKey);
+    if (dismissedVersion == updateInfo.latestVersion) return;
+    if (!mounted) return;
+
+    await UpdateDialog.show(
+      context,
+      updateInfo,
+      onDismiss: () {
+        // Simpan versi yang ditolak agar tidak muncul ulang untuk versi ini.
+        SharedPreferences.getInstance().then(
+          (p) => p.setString(
+            _dismissedUpdateVersionKey,
+            updateInfo.latestVersion,
+          ),
+        );
+      },
+    );
   }
 
   // Key untuk menandai bahwa dialog auto-restore sudah pernah ditampilkan.
